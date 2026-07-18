@@ -679,7 +679,7 @@ let lastRenderKey = null;
 
 function render(){
   const activeEl = document.activeElement;
-  const typingInInput = activeEl && (activeEl.id === 'text-input' || activeEl.id === 'num-input');
+  const typingInInput = activeEl && (activeEl.id === 'text-input' || activeEl.id === 'num-input' || activeEl.classList.contains('timer-sec'));
   const myAnswered = (ME && G.answers[ME.id] !== undefined);
   const timeUpNow = !!(getTimerConfig() && getRemainingSeconds() <= 0);
   const currentKey = (ME ? ME.id + ':' + ME.role : 'none') + ':' + G.state.phase + ':' + G.state.qIndex + ':' + G.state.cluesOpen + ':' + myAnswered + ':' + timeUpNow;
@@ -878,7 +878,7 @@ function hostScreenHTML(state, players, scores){
           ${timerRow('open', 'Klasično', 30)}
           ${timerRow('num', 'Procjena broja', 25)}
           ${timerRow('clues', 'Natuknice', 45)}
-          <button class="ghost small" id="btn-save-settings">Spremi postavke</button>
+          <p class="sub" style="text-align:center; margin-top:8px;">Postavke se spremaju automatski.</p>
         </div>
       `;
     }
@@ -1019,7 +1019,8 @@ function bindHost(state){
       db.ref('state/quizId').set(btn.dataset.id);
     });
   });
-  document.getElementById('btn-save-settings')?.addEventListener('click', async ()=>{
+  async function saveQuizSettings(){
+    if(!document.getElementById('party-mode')) return;
     const partyMode = document.getElementById('party-mode').checked;
     const timers = {};
     document.querySelectorAll('.timer-on').forEach(cb=>{
@@ -1030,7 +1031,10 @@ function bindHost(state){
     });
     await db.ref('quizzes/' + state.quizId).update({ partyMode, timers });
     toast('Postavke spremljene');
-  });
+  }
+  document.getElementById('party-mode')?.addEventListener('change', saveQuizSettings);
+  document.querySelectorAll('.timer-on').forEach(cb => cb.addEventListener('change', saveQuizSettings));
+  document.querySelectorAll('.timer-sec').forEach(inp => inp.addEventListener('change', saveQuizSettings));
   document.getElementById('btn-start')?.addEventListener('click', ()=>{
     db.ref('state').update({ phase:'question', qIndex:0, cluesOpen:1, questionStartedAt: firebase.database.ServerValue.TIMESTAMP });
   });
