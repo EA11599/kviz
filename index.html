@@ -725,7 +725,7 @@ let lastRenderKey = null;
 
 function render(){
   const activeEl = document.activeElement;
-  const typingInInput = activeEl && (activeEl.id === 'text-input' || activeEl.id === 'num-input' || activeEl.classList.contains('timer-sec'));
+  const typingInInput = activeEl && (activeEl.id === 'text-input' || activeEl.id === 'num-input' || activeEl.id === 'name-input' || activeEl.classList.contains('timer-sec'));
   const myAnswered = (ME && G.answers[ME.id] !== undefined);
   const timeUpNow = !!(getTimerConfig() && getRemainingSeconds() <= 0);
   const currentKey = (ME ? ME.id + ':' + ME.role : 'none') + ':' + G.state.phase + ':' + G.state.qIndex + ':' + G.state.cluesOpen + ':' + myAnswered + ':' + timeUpNow;
@@ -799,6 +799,8 @@ function render(){
   }
 }
 
+let joinStep = 'select'; // 'select' | 'name-entry' - lokalno stanje, ne smije se izgubiti na re-render
+
 function joinScreenHTML(){
   return `
     <div style="padding-top:12px;">
@@ -813,36 +815,45 @@ function joinScreenHTML(){
         <div class="ricon">🖥️</div>
         <div class="rtext"><strong>Prikaz za veliki ekran</strong><span>Otvori na laptopu ili TV-u da svi zajedno prate pitanja</span></div>
       </button>
-      <div class="card" id="name-form" style="display:none;">
+      <div class="card" id="name-form" style="display:${joinStep==='name-entry'?'block':'none'};">
         <div style="margin-bottom:12px; font-weight:600; font-size:14px; color:var(--muted);">Kako se zoveš?</div>
-        <input type="text" id="name-input" placeholder="npr. Ana" maxlength="16" autocomplete="off">
+        <input type="text" id="name-input" placeholder="npr. Ana" maxlength="16" autocomplete="off" value="${joinNameDraft}">
       </div>
       <div style="text-align:center; margin-top:22px;">
         <a href="admin.html" target="_blank" rel="noopener" style="color:var(--muted); font-size:12px; text-decoration:none;">⚙️ Upravljanje pitanjima (admin)</a>
       </div>
     </div>
-    <div class="footer-bar" id="join-footer" style="display:none;"><div class="inner">
+    <div class="footer-bar" id="join-footer" style="display:${joinStep==='name-entry'?'block':'none'};"><div class="inner">
       <button class="primary" id="btn-join">Ulazim u igru</button>
     </div></div>
   `;
 }
 
+let joinNameDraft = '';
+
 function bindJoin(){
   document.getElementById('btn-role-player').addEventListener('click', ()=>{
-    document.getElementById('name-form').style.display = 'block';
-    document.getElementById('join-footer').style.display = 'block';
+    joinStep = 'name-entry';
+    render();
     const input = document.getElementById('name-input');
+    if(input) input.focus();
+  });
+  const input = document.getElementById('name-input');
+  if(input){
     input.focus();
+    input.addEventListener('input', ()=>{ joinNameDraft = input.value; });
     const btn = document.getElementById('btn-join');
     const doJoin = ()=>{
       const name = input.value.trim();
       if(!name) { input.focus(); return; }
+      joinStep = 'select';
+      joinNameDraft = '';
       ME = { id: uid(), name, role: 'player' };
       render();
     };
-    btn.addEventListener('click', doJoin);
+    btn?.addEventListener('click', doJoin);
     input.addEventListener('keydown', e=>{ if(e.key==='Enter') doJoin(); });
-  });
+  }
   document.getElementById('btn-role-display').addEventListener('click', ()=>{
     ME = { id: uid(), name: null, role: 'display' };
     render();
