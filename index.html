@@ -247,6 +247,14 @@
     padding: 6px 14px; font-size: 13px; font-weight: 700; color: var(--teal);
     font-family:'Baloo 2',sans-serif;
   }
+  .type-badge{
+    display:inline-block; background: var(--surface-2); color: var(--muted);
+    border: 1px solid var(--border); border-radius: 999px;
+    padding: 5px 12px; font-size: 12px; font-weight: 700;
+    font-family:'Baloo 2',sans-serif; margin: 8px 0;
+  }
+  .type-badge.badge-special{ color: var(--pink); border-color: var(--pink); }
+  .stage .type-badge{ font-size: 15px; padding: 7px 16px; }
   .timer-banner{
     display:flex; align-items:center; justify-content:center; gap:8px;
     width: 100%; box-sizing:border-box;
@@ -362,6 +370,20 @@ function getRemainingSeconds(){
   const elapsed = (Date.now() - G.state.questionStartedAt) / 1000;
   return Math.max(0, Math.ceil(cfg.sec - elapsed));
 }
+function questionTypeBadgeHTML(q){
+  if(!q) return '';
+  let label, cls = '';
+  if(q.type === 'mc') label = 'ABCD · 1 bod';
+  else if(q.type === 'num') label = 'Procjena broja · max = broj sudionika';
+  else if(q.type === 'open'){
+    if(q.special){ label = '⭐ Posebna kategorija · 3 boda / -1 netočno'; cls = 'badge-special'; }
+    else label = 'Klasično pitanje · 1 bod';
+  }
+  else if(q.type === 'clues'){ label = 'Natuknice · 5→1 bod'; }
+  else return '';
+  return `<div class="type-badge ${cls}">${label}</div>`;
+}
+
 function timerPillHTML(){
   const cfg = getTimerConfig();
   if(!cfg) return '';
@@ -954,6 +976,7 @@ function hostScreenHTML(state, players, scores){
         <div class="eyebrow">Pitanje ${state.qIndex+1} / ${activeQuiz().questions.length} <span class="badge-host">HOST</span></div>
         ${timerPillHTML()}
         <h1 class="title-hero" style="font-size:26px;">${q.text}</h1>
+        ${questionTypeBadgeHTML(q)}
         ${cluesBlock}
         <div class="card">
           <div class="qcount">Odgovorili</div>
@@ -1141,6 +1164,7 @@ function playerScreenHTML(state, players, scores){
         <div style="padding-top:12px;">
           ${scoreLine}
           <h1 class="title-hero" style="font-size:24px;">${q.text}</h1>
+          ${questionTypeBadgeHTML(q)}
           <div style="margin-top:18px;">${opts}</div>
         </div>
       `;
@@ -1149,6 +1173,7 @@ function playerScreenHTML(state, players, scores){
         <div style="padding-top:12px;">
           ${scoreLine}
           <h1 class="title-hero" style="font-size:24px;">${q.text}</h1>
+          ${questionTypeBadgeHTML(q)}
           <div class="card" style="margin-top:14px;">
             <input type="number" id="num-input" placeholder="Upiši broj" inputmode="numeric">
           </div>
@@ -1162,7 +1187,7 @@ function playerScreenHTML(state, players, scores){
         <div style="padding-top:12px;">
           ${scoreLine}
           <h1 class="title-hero" style="font-size:24px;">${q.text}</h1>
-          ${q.special ? '<div class="pill" style="margin-top:6px; color:var(--pink);">⭐ Posebna kategorija: 3 boda točno / -1 netočno</div>' : ''}
+          ${questionTypeBadgeHTML(q)}
           <div class="card" style="margin-top:14px;">
             <input type="text" id="text-input" placeholder="Upiši odgovor" autocomplete="off">
           </div>
@@ -1177,6 +1202,7 @@ function playerScreenHTML(state, players, scores){
         <div style="padding-top:12px;">
           ${scoreLine}
           <h1 class="title-hero" style="font-size:24px;">${q.text}</h1>
+          ${questionTypeBadgeHTML(q)}
           <p class="sub">Vrijedi ${6 - state.cluesOpen} ${(6-state.cluesOpen)===1?'bod':'boda'} ako sad pogodiš.</p>
           <div class="players-list" style="margin-bottom:14px;">${clues}</div>
           <div class="card">
@@ -1306,6 +1332,7 @@ function displayScreenHTML(state, players, scores){
       <div class="stage">
         <div class="eyebrow">Pitanje ${state.qIndex+1} / ${activeQuiz().questions.length}</div>
         ${timerPillHTML()}
+        ${questionTypeBadgeHTML(q)}
         <div class="stage-q">${q.text}</div>
         ${opts}
         <div class="pill flash" style="margin-top:20px;"><span class="dot"></span>${answered} / ${total} odgovorilo</div>
