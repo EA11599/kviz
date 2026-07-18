@@ -1,0 +1,1260 @@
+<!DOCTYPE html>
+<html lang="hr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Predigra kviz</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #071A38;
+    --surface: #0E2A5C;
+    --surface-2: #153B70;
+    --pink: #D9A62E;
+    --amber: #F0C863;
+    --teal: #E0B93D;
+    --violet: #5FA8E8;
+    --text: #F5F9FF;
+    --muted: #93AAD1;
+    --border: rgba(255,255,255,0.10);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background: radial-gradient(circle at 20% -10%, #164585 0%, var(--bg) 45%), var(--bg);
+    color: var(--text);
+    font-family: 'Inter', sans-serif;
+    min-height: 100vh;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .disco{
+    position: fixed; top: -120px; right: -120px; width: 300px; height: 300px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(217,166,46,0.30), rgba(30,79,160,0.0) 70%);
+    filter: blur(10px);
+    pointer-events: none;
+    animation: float 8s ease-in-out infinite;
+    z-index: 0;
+  }
+  @keyframes float{
+    0%,100%{ transform: translate(0,0) scale(1); }
+    50%{ transform: translate(-30px, 40px) scale(1.15); }
+  }
+  .wrap{
+    position: relative; z-index: 1;
+    max-width: 460px; margin: 0 auto;
+    padding: 68px 18px 140px;
+    min-height: 100vh;
+  }
+  h1,h2,h3{ font-family:'Baloo 2', sans-serif; font-weight:700; margin: 0 0 4px; }
+  .eyebrow{
+    font-family:'Baloo 2', sans-serif; font-weight:700; font-size: 13px;
+    letter-spacing: 0.12em; text-transform: uppercase; color: var(--amber);
+    margin-bottom: 6px;
+  }
+  .title-hero{ font-size: 34px; line-height: 1.05; margin-bottom: 8px; }
+  .sub{ color: var(--muted); font-size: 15px; line-height: 1.5; margin-bottom: 24px; }
+  .card{
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 20px;
+    margin-bottom: 16px;
+  }
+  .card.tight{ padding: 14px 16px; }
+  input[type=text], input[type=number]{
+    width: 100%;
+    background: var(--surface-2);
+    border: 1.5px solid var(--border);
+    border-radius: 14px;
+    color: var(--text);
+    font-family: 'Inter', sans-serif;
+    font-size: 17px;
+    padding: 14px 16px;
+    outline: none;
+  }
+  input[type=text]:focus, input[type=number]:focus{ border-color: var(--pink); }
+  input::placeholder{ color: var(--muted); }
+  button{
+    font-family: 'Baloo 2', sans-serif;
+    font-weight: 700;
+    font-size: 17px;
+    border: none;
+    border-radius: 16px;
+    padding: 15px 20px;
+    cursor: pointer;
+    width: 100%;
+    color: #0B1D3A;
+    background: var(--amber);
+    transition: transform 0.08s ease, opacity 0.15s ease;
+  }
+  button:active{ transform: scale(0.97); }
+  button.primary{ background: linear-gradient(135deg, var(--pink), #F3D77A); color: #0B1D3A; }
+  button.ghost{
+    background: transparent; color: var(--text);
+    border: 1.5px solid var(--border);
+  }
+  button.teal{ background: var(--teal); color: #0B1D3A; }
+  button.small{ padding: 8px 14px; font-size: 13px; }
+  button:disabled{ opacity: 0.45; cursor: default; }
+  .mc-btn{
+    display:block; width:100%; text-align:left;
+    background: var(--surface-2); color: var(--text);
+    border: 1.5px solid var(--border);
+    border-radius: 14px; padding: 15px 16px; margin-bottom: 10px;
+    font-family: 'Inter', sans-serif; font-weight: 600; font-size: 15px;
+  }
+  .mc-btn:active{ transform: scale(0.98); }
+  .mc-btn.selected{ border-color: var(--pink); background: rgba(217,166,46,0.16); }
+  .mc-btn.correct{ border-color: var(--teal); background: rgba(224,185,61,0.18); }
+  .mc-btn.wrong{ border-color: #E2585A; background: rgba(226,88,90,0.14); }
+  .pill{
+    display:inline-flex; align-items:center; gap:6px;
+    background: var(--surface-2); border-radius: 999px;
+    padding: 5px 12px; font-size: 12px; font-weight: 600; color: var(--muted);
+  }
+  .dot{ width:7px; height:7px; border-radius:50%; background: var(--teal); }
+  .row{ display:flex; align-items:center; justify-content:space-between; gap: 10px; }
+  .players-list{ display:flex; flex-direction:column; gap:8px; }
+  .player-chip{
+    display:flex; align-items:center; justify-content:space-between;
+    background: var(--surface-2); border-radius: 14px; padding: 12px 14px;
+  }
+  .avatar{
+    width: 34px; height: 34px; border-radius: 50%;
+    display:flex; align-items:center; justify-content:center;
+    font-weight:700; font-family:'Baloo 2',sans-serif; font-size:14px;
+    background: linear-gradient(135deg, var(--violet), var(--pink)); color:white;
+    flex-shrink:0;
+  }
+  .name-row{ display:flex; align-items:center; gap:10px; }
+  .score-row{
+    display:flex; align-items:center; justify-content:space-between;
+    padding: 12px 14px; border-radius: 14px; margin-bottom: 8px;
+    background: var(--surface-2);
+  }
+  .score-row.me{ border: 1.5px solid var(--pink); }
+  .rank{
+    font-family:'Baloo 2',sans-serif; font-weight:800; font-size:18px;
+    width: 26px; color: var(--muted);
+  }
+  .rank.gold{ color: var(--amber); }
+  .points{ font-family:'Baloo 2',sans-serif; font-weight:800; font-size:17px; color: var(--teal); }
+  .qcount{ font-size: 13px; color: var(--muted); margin-bottom: 6px; }
+  .footer-bar{
+    position: fixed; bottom: 0; left: 0; right: 0;
+    background: linear-gradient(0deg, var(--bg) 60%, transparent);
+    padding: 16px 18px 20px; z-index: 5;
+  }
+  .footer-bar .inner{ max-width: 460px; margin: 0 auto; }
+  .badge-host{
+    display:inline-block; background: rgba(240,200,99,0.20); color: var(--amber);
+    font-size:11px; font-weight:700; padding: 3px 9px; border-radius: 999px; margin-left: 6px;
+  }
+  .center-note{ text-align:center; color: var(--muted); font-size: 14px; padding: 30px 10px; }
+  .big-emoji{ font-size: 40px; text-align:center; margin-bottom: 10px; }
+  .link-box{
+    background: var(--surface-2); border-radius: 14px; padding: 12px 14px;
+    font-size: 13px; color: var(--muted); word-break: break-all; margin-bottom: 12px;
+  }
+  .flash{ animation: pop 0.35s ease; }
+  @keyframes pop{ 0%{ transform: scale(0.9); opacity:0.4;} 100%{ transform: scale(1); opacity:1;} }
+  .role-btn{
+    display:flex; align-items:center; gap:14px; text-align:left;
+    background: var(--surface); border: 1.5px solid var(--border);
+    border-radius: 18px; padding: 18px; margin-bottom: 12px;
+  }
+  .role-btn .ricon{ font-size: 26px; }
+  .role-btn .rtext strong{ display:block; font-family:'Baloo 2',sans-serif; font-size:16px; margin-bottom:2px; color: var(--pink); }
+  .role-btn .rtext span{ color: var(--muted); font-size: 13px; }
+  .stage{ padding-top: 40px; text-align:center; }
+  .stage .eyebrow{ font-size: 15px; }
+  .stage .sub{ font-size: 19px; }
+  .stage .stage-q{
+    font-family:'Baloo 2', sans-serif; font-weight:700;
+    font-size: clamp(30px, 5.5vw, 50px); line-height: 1.15; margin: 18px 0 30px;
+  }
+  .stage .stage-answer{
+    font-family:'Baloo 2', sans-serif; font-weight:800;
+    font-size: clamp(26px, 4.5vw, 40px); color: var(--teal); margin: 10px 0 30px;
+  }
+  .stage .stage-board{ max-width: 520px; margin: 0 auto; text-align:left; }
+  .stage .score-row{ padding: 16px 18px; }
+  .stage .points{ font-size: 22px; }
+  .stage .rank{ font-size: 22px; width: 32px; }
+  .stage .pill{ font-size: 14px; padding: 8px 16px; }
+  .stage-options{
+    max-width: 760px; margin: 0 auto; display:grid;
+    grid-template-columns: 1fr 1fr; gap: 16px; text-align:center;
+  }
+  .stage-options.single-col{ grid-template-columns: 1fr; }
+  .stage-options .mc-btn{
+    text-align:center; font-size: 24px; font-weight:600;
+    padding: 24px 22px; display:flex; align-items:center; justify-content:center;
+  }
+  .home-btn{
+    position: fixed; top: 14px; left: 14px; z-index: 10;
+    width: auto; background: var(--surface); border: 1.5px solid var(--border);
+    border-radius: 999px; padding: 8px 14px; font-size: 13px; font-weight: 600;
+    color: var(--muted); display:flex; align-items:center; gap:6px;
+    font-family: 'Inter', sans-serif;
+  }
+  .home-btn:active{ transform: scale(0.96); }
+  .sound-btn{
+    position: fixed; top: 14px; right: 14px; z-index: 10;
+    width: 38px; height: 38px; background: var(--surface); border: 1.5px solid var(--border);
+    border-radius: 50%; font-size: 16px; display:flex; align-items:center; justify-content:center;
+    padding: 0;
+  }
+  .sound-btn:active{ transform: scale(0.9); }
+  .confetti-piece{
+    position: fixed; top: -12px; width: 8px; height: 14px;
+    z-index: 60; pointer-events: none; opacity: 1;
+    animation-name: confetti-fall; animation-timing-function: cubic-bezier(0.4,0.0,0.6,1); animation-fill-mode: forwards;
+  }
+  @keyframes confetti-fall{
+    0%{ transform: translateY(0) rotate(0deg); opacity: 1; }
+    100%{ transform: translateY(105vh) rotate(600deg); opacity: 0.25; }
+  }
+  .pop-in{ animation: pop-in-kf 0.5s cubic-bezier(0.2,1.4,0.4,1); }
+  @keyframes pop-in-kf{
+    0%{ transform: scale(0.3) rotate(-8deg); opacity: 0; }
+    60%{ transform: scale(1.12) rotate(2deg); opacity: 1; }
+    100%{ transform: scale(1) rotate(0deg); opacity: 1; }
+  }
+  .board-btn{
+    position: fixed; top: 14px; right: 60px; z-index: 10;
+    width: auto; background: var(--surface); border: 1.5px solid var(--border);
+    border-radius: 999px; padding: 8px 14px; font-size: 13px; font-weight: 600;
+    color: var(--pink); display:flex; align-items:center; gap:6px;
+    font-family: 'Inter', sans-serif;
+  }
+  .board-btn:active{ transform: scale(0.96); }
+  .score-pill{
+    display:inline-flex; align-items:center; gap:6px;
+    background: var(--surface-2); border-radius: 999px;
+    padding: 6px 14px; font-size: 13px; font-weight: 700; color: var(--teal);
+    font-family:'Baloo 2',sans-serif;
+  }
+  .modal-backdrop{
+    position: fixed; inset: 0; background: rgba(4,10,24,0.72);
+    z-index: 40; display:flex; align-items:flex-end; justify-content:center;
+    backdrop-filter: blur(2px);
+  }
+  .modal-sheet{
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 22px 22px 0 0; padding: 20px; width: 100%; max-width: 460px;
+    max-height: 75vh; overflow-y: auto; animation: sheet-up 0.25s ease;
+  }
+  @keyframes sheet-up{ from{ transform: translateY(30px); opacity:0; } to{ transform: translateY(0); opacity:1; } }
+</style>
+</head>
+<body>
+<div class="disco"></div>
+<button class="home-btn" id="btn-home" style="display:none;">🏠 Naslovna</button>
+<button class="board-btn" id="btn-board" style="display:none;">🏆 Ljestvica</button>
+<button class="sound-btn" id="btn-sound">🔊</button>
+<div class="wrap" id="app">
+  <div class="center-note">Učitavanje...</div>
+</div>
+<div id="modal-root"></div>
+
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-database-compat.js"></script>
+<script src="config.js"></script>
+<script>
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+const SEED_QUIZ = {
+  title: "Opća kultura",
+  questions: [
+    { type:'mc', text:"Koji je najveći ocean na svijetu?", options:["Tihi ocean","Atlantski ocean","Indijski ocean","Arktički ocean"], correct:0 },
+    { type:'num', text:"Koliko kostiju ima odrasli čovjek?", unit:"kostiju", correct:206 },
+    { type:'mc', text:"Koja europska država ima oblik čizme?", options:["Grčka","Italija","Portugal","Norveška"], correct:1 },
+    { type:'mc', text:"Tko je naslikao Mona Lisu?", options:["Vincent van Gogh","Pablo Picasso","Leonardo da Vinci","Michelangelo"], correct:2 },
+    { type:'num', text:"Koje je godine pao Berlinski zid?", unit:"godina", correct:1989 },
+    { type:'mc', text:"Koji je kemijski simbol za zlato?", options:["Ag","Au","Fe","Gd"], correct:1 },
+    { type:'mc', text:"Koja je najveća država na svijetu po površini?", options:["Kanada","Kina","SAD","Rusija"], correct:3 },
+    { type:'mc', text:"Koliko igrača jedne momčadi je na terenu u nogometu?", options:["9","10","11","12"], correct:2 },
+    { type:'mc', text:"Tko je napisao tragediju \"Hamlet\"?", options:["William Shakespeare","Charles Dickens","Lav Tolstoj","Homer"], correct:0 },
+    { type:'mc', text:"Koji je planet najbliži Suncu?", options:["Venera","Merkur","Mars","Zemlja"], correct:1 },
+    { type:'mc', text:"Otprilike koliko metara ima jedna milja?", options:["1000 m","1609 m","2000 m","1852 m"], correct:1 },
+    { type:'mc', text:"Koja je najveća pustinja na svijetu (po površini)?", options:["Sahara","Gobi","Antarktika","Kalahari"], correct:2 },
+    { type:'mc', text:"Koliko slova ima hrvatska abeceda (gajica)?", options:["26","28","30","32"], correct:2 },
+    { type:'mc', text:"Koji je najmanji planet u Sunčevom sustavu?", options:["Mars","Merkur","Venera","Pluton"], correct:1 },
+    { type:'mc', text:"Iz koje zemlje potječe pizza Margherita?", options:["Francuska","Italija","Španjolska","Grčka"], correct:1 },
+    { type:'num', text:"Koje je godine osnovan Facebook?", unit:"godina", correct:2004 },
+    { type:'mc', text:"Koji je nacionalni sport Japana?", options:["Sumo","Karate","Judo","Bejzbol"], correct:0 },
+    { type:'mc', text:"Koliko kontinenata postoji po klasičnoj podjeli?", options:["5","6","7","8"], correct:2 },
+    { type:'num', text:"Koliko zubi ima odrasli čovjek (uključujući umnjake)?", unit:"zubi", correct:32 },
+    { type:'mc', text:"Tko je bio prvi čovjek koji je hodao po Mjesecu?", options:["Buzz Aldrin","Neil Armstrong","Yuri Gagarin","John Glenn"], correct:1 },
+    { type:'mc', text:"Koja je službena valuta Japana?", options:["Yuan","Won","Jen","Rupija"], correct:2 },
+    { type:'num', text:"Koje je godine Hrvatska ušla u Europsku uniju?", unit:"godina", correct:2013 }
+  ]
+};
+
+
+let ME = null;
+
+// Lokalni cache stanja igre - ažurira se automatski preko Firebase listenera
+const G = {
+  state: { phase:'lobby', qIndex:0, hostId:null, quizId:null },
+  players: {},
+  scores: {},
+  answers: {},   // odgovori za TRENUTNO pitanje (state.qIndex)
+  round: {},     // bodovi za TRENUTNO pitanje (state.qIndex)
+  quizzes: {}    // svi kvizovi iz baze: { quizId: { title, questions:[...] } }
+};
+let currentQRefs = null; // { answersRef, roundRef } - da ih možemo odspojiti pri promjeni pitanja
+
+function activeQuiz(){
+  return (G.state.quizId && G.quizzes[G.state.quizId]) || { title: '', questions: [] };
+}
+
+/* ---------- Zvuk (generiran u kodu, bez vanjskih fajlova) ---------- */
+let soundOn = true;
+let audioCtx = null;
+function getAudioCtx(){
+  if(!audioCtx){ audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
+  if(audioCtx.state === 'suspended'){ audioCtx.resume(); }
+  return audioCtx;
+}
+function beep(freq, duration, type, delay, gainVal){
+  if(!soundOn) return;
+  try{
+    const ctx = getAudioCtx();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = type || 'sine';
+    osc.frequency.value = freq;
+    const start = ctx.currentTime + (delay||0);
+    gain.gain.setValueAtTime(gainVal||0.15, start);
+    gain.gain.exponentialRampToValueAtTime(0.001, start + duration);
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.start(start);
+    osc.stop(start + duration + 0.02);
+  }catch(e){}
+}
+function playCorrect(){ beep(880,0.12,'sine',0,0.16); beep(1320,0.2,'sine',0.11,0.14); }
+function playWrong(){ beep(220,0.3,'sawtooth',0,0.1); }
+function playReveal(){ beep(660,0.15,'triangle',0,0.12); }
+function playWin(){ [523,659,784,1046].forEach((f,i)=> beep(f,0.24,'sine',i*0.13,0.15)); }
+
+function loadSoundPref(){
+  try{ soundOn = localStorage.getItem('predigra_sound') !== '0'; }catch(e){ soundOn = true; }
+}
+function toggleSound(){
+  soundOn = !soundOn;
+  try{ localStorage.setItem('predigra_sound', soundOn ? '1' : '0'); }catch(e){}
+  document.getElementById('btn-sound').textContent = soundOn ? '🔊' : '🔇';
+}
+
+/* ---------- Konfete ---------- */
+const CONFETTI_COLORS = ['#D9A62E','#F0C863','#5FA8E8','#FFFFFF','#1E4FA0'];
+function fireConfetti(count){
+  count = count || 50;
+  for(let i=0; i<count; i++){
+    const el = document.createElement('div');
+    el.className = 'confetti-piece';
+    el.style.left = (Math.random()*100) + 'vw';
+    el.style.background = CONFETTI_COLORS[Math.floor(Math.random()*CONFETTI_COLORS.length)];
+    el.style.animationDuration = (2.2 + Math.random()*1.6) + 's';
+    el.style.animationDelay = (Math.random()*0.35) + 's';
+    el.style.borderRadius = Math.random() > 0.5 ? '50%' : '2px';
+    document.body.appendChild(el);
+    setTimeout(()=> el.remove(), 4200);
+  }
+}
+
+/* ---------- Praćenje prijelaza faza da se efekti okinu točno jednom ---------- */
+let lastEffectKey = null;
+function maybeFireEffects(state, isHost, isDisplay){
+  const roleTag = isDisplay ? 'display' : (isHost ? 'host' : 'player');
+  const key = roleTag + ':' + state.phase + ':' + state.qIndex;
+  if(key === lastEffectKey) return;
+
+  if(state.phase === 'reveal'){
+    if(isHost || isDisplay){
+      lastEffectKey = key;
+      playReveal();
+      if(isDisplay) fireConfetti(24);
+    } else {
+      // igrač: čekaj da bodovi za rundu stvarno stignu prije nego zaključimo je li točno
+      if(Object.keys(G.round).length === 0) return;
+      lastEffectKey = key;
+      const myPoints = G.round[ME.id] || 0;
+      if(myPoints > 0){ playCorrect(); fireConfetti(36); }
+      else { playWrong(); }
+    }
+  }
+
+  if(state.phase === 'end'){
+    lastEffectKey = key;
+    if(isDisplay){ playWin(); fireConfetti(80); }
+    else if(!isHost){
+      const rows = Object.keys(G.players).map(pid=>({ pid, score: G.scores[pid]||0 }));
+      rows.sort((a,b)=>b.score-a.score);
+      const myRank = rows.findIndex(r=>r.pid===ME.id) + 1;
+      if(myRank === 1){ playWin(); fireConfetti(90); }
+      else { fireConfetti(30); }
+    }
+  }
+}
+
+
+
+function uid(){ return Math.random().toString(36).slice(2,10); }
+function initials(name){ return (name||'?').trim().slice(0,2).toUpperCase(); }
+
+/* ME se namjerno NE sprema (npr. u localStorage) - refresh stranice
+   mora tražiti ponovnu prijavu, kako smo se dogovorili. */
+function attachQuestionListeners(qIndex){
+  if(currentQRefs){
+    currentQRefs.answersRef.off();
+    currentQRefs.roundRef.off();
+  }
+  G.answers = {};
+  G.round = {};
+  const answersRef = db.ref('answers/' + qIndex);
+  const roundRef = db.ref('round/' + qIndex);
+  answersRef.on('value', snap => { G.answers = snap.val() || {}; render(); });
+  roundRef.on('value', snap => { G.round = snap.val() || {}; render(); });
+  currentQRefs = { answersRef, roundRef };
+}
+
+const LOBBY_TIMEOUT_MS = 5 * 60 * 1000; // 5 min - toliko igrač smije čekati u lobiju prije brisanja
+
+// Vraća G.players BEZ voditelja - voditelj se nikad ne broji kao igrač (ne igra, samo kontrolira).
+function gamePlayers(){
+  const copy = { ...G.players };
+  if(G.state.hostId) delete copy[G.state.hostId];
+  return copy;
+}
+
+let wasInGame = false;
+
+function ensurePlayerInList(){
+  if(!ME || ME.role !== 'player' || ME.id === G.state.hostId) return;
+  if(G.players[ME.id]){
+    wasInGame = true;
+    return;
+  }
+  const ref = db.ref('players/' + ME.id);
+  ref.set({ name: ME.name, joined: firebase.database.ServerValue.TIMESTAMP });
+  ref.onDisconnect().remove();
+}
+
+// Prikazuje samo igrače koji nisu predugo (5 min) čekali u lobiju bez da je kviz pokrenut.
+// Čim faza ode iz 'lobby', ovo više ne filtrira nikoga.
+function activePlayers(players){
+  if(G.state.phase !== 'lobby') return players;
+  const now = Date.now();
+  const result = {};
+  Object.keys(players).forEach(pid=>{
+    const p = players[pid];
+    const joined = p.joined || 0;
+    if(now - joined < LOBBY_TIMEOUT_MS){ result[pid] = p; }
+  });
+  return result;
+}
+
+// Stvarno briše iz baze igrače koji su predugo u lobiju - pokreće samo voditeljev klijent.
+function cleanupStaleLobbyPlayers(){
+  if(!ME || G.state.hostId !== ME.id || G.state.phase !== 'lobby') return;
+  const now = Date.now();
+  Object.keys(G.players).forEach(pid=>{
+    if(pid === G.state.hostId) return; // nikad ne briši voditelja
+    const joined = G.players[pid].joined || 0;
+    if(now - joined > LOBBY_TIMEOUT_MS){
+      db.ref('players/' + pid).remove();
+    }
+  });
+}
+
+function normalizeText(s){
+  return String(s||'').trim().toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+    .replace(/[^\w\s]/g,'').replace(/\s+/g,' ');
+}
+
+async function scoreQuestion(qIndex){
+  const q = activeQuiz().questions[qIndex];
+  const playersSnap = await db.ref('players').once('value');
+  const players = playersSnap.val() || {};
+  if(G.state.hostId) delete players[G.state.hostId]; // voditelj se ne broji kao igrač
+  const answersSnap = await db.ref('answers/' + qIndex).once('value');
+  const answers = answersSnap.val() || {};
+  const round = {};
+
+  if(q.type === 'mc'){
+    Object.keys(players).forEach(pid=>{
+      const a = answers[pid];
+      round[pid] = (a && a.value === q.correct) ? 1 : 0;
+    });
+  } else if(q.type === 'num'){
+    const total = Object.keys(players).length;
+    const diffs = Object.keys(players).map(pid=>{
+      const a = answers[pid];
+      const d = a ? Math.abs(a.value - q.correct) : Infinity;
+      return { pid, d };
+    });
+    const uniqueDiffs = [...new Set(diffs.filter(x=>x.d!==Infinity).map(x=>x.d))].sort((a,b)=>a-b);
+    diffs.forEach(({pid,d})=>{
+      if(d === Infinity){ round[pid] = 0; return; }
+      const rank = uniqueDiffs.indexOf(d);
+      round[pid] = Math.max(total - rank, 0);
+    });
+  } else if(q.type === 'open'){
+    Object.keys(players).forEach(pid=>{
+      const a = answers[pid];
+      if(!a){ round[pid] = 0; return; }
+      const isCorrect = normalizeText(a.value) === normalizeText(q.correct);
+      round[pid] = isCorrect ? (q.special ? 3 : 1) : (q.special ? -1 : 0);
+    });
+  } else if(q.type === 'clues'){
+    Object.keys(players).forEach(pid=>{
+      const a = answers[pid];
+      if(!a){ round[pid] = 0; return; }
+      const isCorrect = normalizeText(a.value) === normalizeText(q.correct);
+      const clueVal = Math.max(6 - (a.cluesOpen || 5), 1);
+      round[pid] = isCorrect ? clueVal : 0;
+    });
+  }
+
+  await db.ref('round/' + qIndex).set(round);
+  const scoresSnap = await db.ref('scores').once('value');
+  const scores = scoresSnap.val() || {};
+  Object.keys(round).forEach(pid=>{ scores[pid] = (scores[pid]||0) + round[pid]; });
+  await db.ref('scores').set(scores);
+}
+
+// Voditelj ručno mijenja točno/netočno za 'open' i 'clues' tipove (slobodan tekst)
+async function toggleGrade(qIndex, pid){
+  const q = activeQuiz().questions[qIndex];
+  if(q.type !== 'open' && q.type !== 'clues') return;
+  const answersSnap = await db.ref('answers/' + qIndex + '/' + pid).once('value');
+  const a = answersSnap.val();
+  if(!a) return;
+  const roundSnap = await db.ref('round/' + qIndex).once('value');
+  const round = roundSnap.val() || {};
+  const oldPoints = round[pid] || 0;
+
+  let newPoints;
+  if(q.type === 'open'){
+    const wasCorrect = q.special ? oldPoints === 3 : oldPoints === 1;
+    newPoints = wasCorrect ? (q.special ? -1 : 0) : (q.special ? 3 : 1);
+  } else {
+    const clueVal = Math.max(6 - (a.cluesOpen || 5), 1);
+    const wasCorrect = oldPoints === clueVal;
+    newPoints = wasCorrect ? 0 : clueVal;
+  }
+
+  round[pid] = newPoints;
+  await db.ref('round/' + qIndex).set(round);
+  const scoresSnap = await db.ref('scores').once('value');
+  const scores = scoresSnap.val() || {};
+  scores[pid] = (scores[pid] || 0) + (newPoints - oldPoints);
+  await db.ref('scores').set(scores);
+}
+
+function scoreboardHTML(players, scores, meId){
+  const rows = Object.keys(players).map(pid=>({ pid, name: players[pid].name, score: scores[pid]||0 }));
+  rows.sort((a,b)=>b.score-a.score);
+  return rows.map((r,i)=>`
+    <div class="score-row ${r.pid===meId?'me':''}">
+      <div class="name-row">
+        <div class="rank ${i===0?'gold':''}">${i+1}</div>
+        <div class="avatar" style="width:28px;height:28px;font-size:12px;">${initials(r.name)}</div>
+        <div>${r.name}${r.pid===meId?' <span style="color:var(--muted);font-size:12px;">(ti)</span>':''}</div>
+      </div>
+      <div class="points">${r.score}</div>
+    </div>
+  `).join('');
+}
+
+async function resetGame(){
+  await db.ref('state').set({ phase:'lobby', qIndex:0, hostId: ME.id, quizId: null });
+  await db.ref('players').set(null);
+  await db.ref('scores').set(null);
+  await db.ref('answers').set(null);
+  await db.ref('round').set(null);
+}
+
+let scoreboardOpen = false;
+function toggleScoreboard(){
+  scoreboardOpen = !scoreboardOpen;
+  renderScoreboardModal();
+}
+function renderScoreboardModal(){
+  const root = document.getElementById('modal-root');
+  if(!scoreboardOpen || !ME || ME.role === 'display'){
+    root.innerHTML = '';
+    return;
+  }
+  root.innerHTML = `
+    <div class="modal-backdrop" id="modal-backdrop">
+      <div class="modal-sheet">
+        <div class="row" style="margin-bottom:14px;">
+          <h3 style="margin:0;">🏆 Ljestvica</h3>
+          <button class="ghost small" id="btn-close-board" style="width:auto; padding:6px 14px;">Zatvori</button>
+        </div>
+        ${Object.keys(G.players).length ? scoreboardHTML(G.players, G.scores, ME.id) : '<div class="center-note">Još nema igrača.</div>'}
+      </div>
+    </div>
+  `;
+  document.getElementById('btn-close-board').addEventListener('click', toggleScoreboard);
+  document.getElementById('modal-backdrop').addEventListener('click', (e)=>{
+    if(e.target.id === 'modal-backdrop') toggleScoreboard();
+  });
+}
+
+function goHome(){
+  const amHost = ME && G.state.hostId === ME.id;
+  const msg = amHost
+    ? 'Ti si trenutno voditelj. Ako se vratiš na naslovnu, igra se vraća u lobby i netko drugi može preuzeti tu ulogu. Nastaviti?'
+    : 'Vratiti se na naslovnu stranicu? Igra u tijeku ostaje netaknuta za ostale.';
+  if(!confirm(msg)) return;
+  if(amHost){
+    db.ref('state').onDisconnect().cancel();
+    db.ref('players').onDisconnect().cancel();
+    db.ref('scores').onDisconnect().cancel();
+    db.ref('answers').onDisconnect().cancel();
+    db.ref('round').onDisconnect().cancel();
+    db.ref('state').update({ hostId: null, phase: 'lobby', qIndex: 0, cluesOpen: 1 });
+    db.ref('players').remove();
+    db.ref('scores').remove();
+    db.ref('answers').remove();
+    db.ref('round').remove();
+  }
+  if(ME && ME.role === 'player'){
+    db.ref('players/' + ME.id).onDisconnect().cancel();
+    db.ref('players/' + ME.id).remove();
+  }
+  ME = null;
+  render();
+}
+
+let lastRenderKey = null;
+
+function render(){
+  const activeEl = document.activeElement;
+  const typingInInput = activeEl && (activeEl.id === 'text-input' || activeEl.id === 'num-input');
+  const myAnswered = (ME && G.answers[ME.id] !== undefined);
+  const currentKey = (ME ? ME.id + ':' + ME.role : 'none') + ':' + G.state.phase + ':' + G.state.qIndex + ':' + G.state.cluesOpen + ':' + myAnswered;
+  if(typingInInput && currentKey === lastRenderKey){
+    return; // ništa relevantno za ovaj ekran se nije promijenilo - ne diraj input dok korisnik piše
+  }
+  lastRenderKey = currentKey;
+
+  const app = document.getElementById('app');
+  const homeBtn = document.getElementById('btn-home');
+  homeBtn.style.display = ME ? 'flex' : 'none';
+  const boardBtn = document.getElementById('btn-board');
+  boardBtn.style.display = (ME && ME.role !== 'display') ? 'flex' : 'none';
+  renderScoreboardModal();
+
+  if(!ME){
+    app.style.maxWidth = '460px';
+    app.innerHTML = joinScreenHTML();
+    bindJoin();
+    return;
+  }
+
+  if(ME.role === 'display'){
+    app.style.maxWidth = '760px';
+    app.innerHTML = displayScreenHTML(G.state, gamePlayers(), G.scores) || '<div class="center-note">Učitavanje stanja igre...</div>';
+    maybeFireEffects(G.state, false, true);
+    return;
+  }
+
+  app.style.maxWidth = '460px';
+
+  if(ME.role === 'player' && ME.id !== G.state.hostId && wasInGame && !G.players[ME.id]){
+    wasInGame = false;
+    ME = null;
+    render();
+    return;
+  }
+  ensurePlayerInList();
+
+  const isHost = G.state.hostId === ME.id;
+
+  if(!G.state.hostId){
+    app.innerHTML = noHostScreenHTML(gamePlayers());
+    document.getElementById('btn-become-host')?.addEventListener('click', async ()=>{
+      await db.ref('state').transaction(current => {
+        if(!current || !current.hostId){
+          return { ...(current||{}), hostId: ME.id, phase: 'lobby', qIndex: 0, cluesOpen: 1 };
+        }
+        return current; // netko je u međuvremenu već postao voditelj, ne diraj
+      });
+      db.ref('players/' + ME.id).onDisconnect().cancel();
+      db.ref('players/' + ME.id).remove();
+    });
+    return;
+  }
+
+  if(isHost){
+    db.ref('state').onDisconnect().update({ hostId: null, phase: 'lobby', qIndex: 0, cluesOpen: 1 });
+    db.ref('players').onDisconnect().remove();
+    db.ref('scores').onDisconnect().remove();
+    db.ref('answers').onDisconnect().remove();
+    db.ref('round').onDisconnect().remove();
+    app.innerHTML = hostScreenHTML(G.state, gamePlayers(), G.scores) || '<div class="center-note">Učitavanje stanja igre...</div>';
+    bindHost(G.state);
+    maybeFireEffects(G.state, true, false);
+  } else {
+    app.innerHTML = playerScreenHTML(G.state, gamePlayers(), G.scores) || '<div class="center-note">Učitavanje stanja igre...</div>';
+    bindPlayer(G.state);
+    maybeFireEffects(G.state, false, false);
+  }
+}
+
+function joinScreenHTML(){
+  return `
+    <div style="padding-top:12px;">
+      <div class="eyebrow">Predigra kviz</div>
+      <h1 class="title-hero">Zagrijmo se<br>prije izlaska 🍹</h1>
+      <p class="sub">Voditelj bira temu i pokreće pitanja, ostali odgovaraju na svom mobitelu.</p>
+      <button class="role-btn" id="btn-role-player">
+        <div class="ricon">📱</div>
+        <div class="rtext"><strong>Igram na mobitelu</strong><span>Odgovaraš na pitanja i vidiš svoje bodove</span></div>
+      </button>
+      <button class="role-btn" id="btn-role-display">
+        <div class="ricon">🖥️</div>
+        <div class="rtext"><strong>Prikaz za veliki ekran</strong><span>Otvori na laptopu ili TV-u da svi zajedno prate pitanja</span></div>
+      </button>
+      <div class="card" id="name-form" style="display:none;">
+        <div style="margin-bottom:12px; font-weight:600; font-size:14px; color:var(--muted);">Kako se zoveš?</div>
+        <input type="text" id="name-input" placeholder="npr. Ana" maxlength="16" autocomplete="off">
+      </div>
+      <div style="text-align:center; margin-top:22px;">
+        <a href="admin.html" target="_blank" rel="noopener" style="color:var(--muted); font-size:12px; text-decoration:none;">⚙️ Upravljanje pitanjima (admin)</a>
+      </div>
+    </div>
+    <div class="footer-bar" id="join-footer" style="display:none;"><div class="inner">
+      <button class="primary" id="btn-join">Ulazim u igru</button>
+    </div></div>
+  `;
+}
+
+function bindJoin(){
+  document.getElementById('btn-role-player').addEventListener('click', ()=>{
+    document.getElementById('name-form').style.display = 'block';
+    document.getElementById('join-footer').style.display = 'block';
+    const input = document.getElementById('name-input');
+    input.focus();
+    const btn = document.getElementById('btn-join');
+    const doJoin = ()=>{
+      const name = input.value.trim();
+      if(!name) { input.focus(); return; }
+      ME = { id: uid(), name, role: 'player' };
+      render();
+    };
+    btn.addEventListener('click', doJoin);
+    input.addEventListener('keydown', e=>{ if(e.key==='Enter') doJoin(); });
+  });
+  document.getElementById('btn-role-display').addEventListener('click', ()=>{
+    ME = { id: uid(), name: null, role: 'display' };
+    render();
+  });
+}
+
+function noHostScreenHTML(players){
+  const active = activePlayers(players);
+  const list = Object.values(active).map(p=>`
+    <div class="player-chip"><div class="name-row">
+      <div class="avatar">${initials(p.name)}</div><div>${p.name}</div>
+    </div></div>`).join('');
+  return `
+    <div style="padding-top:12px;">
+      <div class="eyebrow">Lobby</div>
+      <h1 class="title-hero">Bok, ${ME.name} 👋</h1>
+      <p class="sub">Netko treba biti voditelj i kontrolirati tempo igre. Ako si to ti, javi se.</p>
+      <div class="card">
+        <div style="font-weight:600; font-size:14px; color:var(--muted); margin-bottom:10px;">Prijavljeni igrači</div>
+        <div class="players-list">${list || '<div class="center-note" style="padding:8px;">Još nitko drugi nije ušao</div>'}</div>
+      </div>
+    </div>
+    <div class="footer-bar"><div class="inner">
+      <button class="primary" id="btn-become-host">Ja sam voditelj 🎤</button>
+    </div></div>
+  `;
+}
+
+function hostScreenHTML(state, players, scores){
+  const total = Object.keys(activePlayers(players)).length;
+  if(state.phase === 'lobby'){
+    const list = Object.values(activePlayers(players)).map(p=>`
+      <div class="player-chip"><div class="name-row">
+        <div class="avatar">${initials(p.name)}</div><div>${p.name}</div>
+      </div></div>`).join('');
+
+    const quizIds = Object.keys(G.quizzes);
+    const existingList = quizIds.map(id => {
+      const q = G.quizzes[id];
+      const selected = state.quizId === id;
+      return `<button class="mc-btn quiz-pick ${selected?'selected':''}" data-id="${id}">
+        <strong style="display:block;">${q.title || 'Bez naziva'}</strong>
+        <span style="color:var(--muted); font-size:13px;">${(q.questions||[]).length} pitanja</span>
+      </button>`;
+    }).join('');
+
+    const addNewBtn = `<a href="admin.html" target="_blank" rel="noopener" class="mc-btn" style="display:flex; align-items:center; justify-content:center; gap:8px; text-align:center; text-decoration:none; border-style:dashed;">
+        <span style="font-size:18px;">➕</span>
+        <span>Dodaj novi kviz</span>
+      </a>`;
+
+    const canStart = total >= 1 && !!state.quizId;
+
+    return `
+      <div style="padding-top:12px;">
+        <div class="eyebrow">Ti si voditelj <span class="badge-host">HOST</span></div>
+        <h1 class="title-hero">${activeQuiz().title || 'Odaberi kviz'}</h1>
+        <p class="sub">Podijeli link s ekipom da uđu na svoje mobitele, pa kreni kad su svi tu.</p>
+        <div class="link-box">Pošalji im link ove stranice da otvore na svom telefonu.</div>
+        <div class="card">
+          <div class="row" style="margin-bottom:10px;">
+            <div style="font-weight:600; font-size:14px; color:var(--muted);">Odaberi kviz</div>
+            <a href="admin.html" target="_blank" rel="noopener" style="color:var(--muted); font-size:12px; text-decoration:none;">⚙️ Otvori admin panel</a>
+          </div>
+          ${existingList}
+          ${addNewBtn}
+        </div>
+        <div class="card">
+          <div class="row" style="margin-bottom:10px;">
+            <div style="font-weight:600; font-size:14px; color:var(--muted);">Igrači</div>
+            <div class="pill"><span class="dot"></span>${total} u lobiju</div>
+          </div>
+          <div class="players-list">${list || '<div class="center-note" style="padding:8px;">Čekamo igrače...</div>'}</div>
+        </div>
+      </div>
+      <div class="footer-bar"><div class="inner">
+        <button class="primary" id="btn-start" ${canStart?'':'disabled'}>Pokreni kviz 🚀</button>
+      </div></div>
+    `;
+  }
+
+  if(state.phase === 'question'){
+    const q = activeQuiz().questions[state.qIndex];
+    const answered = Object.keys(G.answers).length;
+    const cluesBlock = q.type === 'clues' ? `
+      <div class="card">
+        <div class="qcount">Otvorene natuknice (${state.cluesOpen}/5)</div>
+        <div class="players-list" style="margin-bottom:12px;">
+          ${q.clues.slice(0, state.cluesOpen).map((c,i)=>`<div class="player-chip"><div class="name-row"><div class="avatar">${i+1}</div><div>${c}</div></div></div>`).join('')}
+        </div>
+        <button class="teal" id="btn-open-clue" ${state.cluesOpen>=5?'disabled':''}>Otvori sljedeću natuknicu 🔍</button>
+      </div>
+    ` : '';
+    return `
+      <div style="padding-top:12px;">
+        <div class="eyebrow">Pitanje ${state.qIndex+1} / ${activeQuiz().questions.length} <span class="badge-host">HOST</span></div>
+        <h1 class="title-hero" style="font-size:26px;">${q.text}</h1>
+        ${cluesBlock}
+        <div class="card">
+          <div class="qcount">Odgovorili</div>
+          <div class="row">
+            <div class="pill flash"><span class="dot"></span>${answered} / ${total} igrača</div>
+          </div>
+        </div>
+      </div>
+      <div class="footer-bar"><div class="inner">
+        <button class="primary" id="btn-reveal">Zatvori pitanje i pokaži rezultate 🎯</button>
+      </div></div>
+    `;
+  }
+
+  if(state.phase === 'reveal'){
+    const q = activeQuiz().questions[state.qIndex];
+    const answerText = (q.type==='mc') ? q.options[q.correct]
+      : (q.type==='num') ? `${q.correct} ${q.unit||''}`
+      : q.correct;
+    const isLast = state.qIndex === activeQuiz().questions.length - 1;
+
+    let gradingBlock = '';
+    if(q.type === 'open' || q.type === 'clues'){
+      const rows = Object.keys(G.answers).map(pid=>{
+        const name = players[pid]?.name || '?';
+        const ans = G.answers[pid];
+        const pts = G.round[pid] || 0;
+        const isCorrect = pts > 0;
+        return `
+          <div class="player-chip" style="align-items:center;">
+            <div class="name-row" style="flex:1; min-width:0;">
+              <div class="avatar">${initials(name)}</div>
+              <div style="min-width:0;">
+                <div style="font-weight:600;">${name}</div>
+                <div style="color:var(--muted); font-size:13px; word-break:break-word;">"${ans.value}"${q.type==='clues' ? ` · na natuknici ${ans.cluesOpen||5}` : ''}</div>
+              </div>
+            </div>
+            <button class="grade-toggle small ${isCorrect?'teal':'ghost'}" data-pid="${pid}" style="width:auto; flex-shrink:0;">${isCorrect ? `✅ +${pts}` : (pts<0 ? `❌ ${pts}` : '❌')}</button>
+          </div>
+        `;
+      }).join('');
+      gradingBlock = `
+        <div class="card">
+          <div style="font-weight:600; font-size:14px; color:var(--muted); margin-bottom:10px;">Provjeri odgovore (klikni da promijeniš)</div>
+          ${rows || '<div class="center-note">Nitko nije odgovorio.</div>'}
+        </div>
+      `;
+    }
+
+    return `
+      <div style="padding-top:12px;">
+        <div class="eyebrow">Rezultat <span class="badge-host">HOST</span></div>
+        <div class="big-emoji pop-in">✅</div>
+        <h1 class="title-hero" style="text-align:center; font-size:24px;">Točan odgovor:<br>${answerText}</h1>
+        ${gradingBlock}
+        <div class="card">
+          <div style="font-weight:600; font-size:14px; color:var(--muted); margin-bottom:10px;">Trenutna ljestvica</div>
+          ${scoreboardHTML(players, scores, ME.id)}
+        </div>
+      </div>
+      <div class="footer-bar"><div class="inner">
+        <button class="primary" id="btn-next">${isLast ? 'Prikaži konačne rezultate 🏆' : 'Sljedeće pitanje ➡️'}</button>
+      </div></div>
+    `;
+  }
+
+  if(state.phase === 'end'){
+    return `
+      <div style="padding-top:12px;">
+        <div class="eyebrow">Kraj kviza <span class="badge-host">HOST</span></div>
+        <div class="big-emoji pop-in">🏆</div>
+        <h1 class="title-hero" style="text-align:center;">Konačna ljestvica</h1>
+        <div class="card">${scoreboardHTML(players, scores, ME.id)}</div>
+        <p class="sub" style="text-align:center;">Sad se javno pije za pobjednika. Živjeli! 🥂</p>
+      </div>
+      <div class="footer-bar"><div class="inner">
+        <button class="ghost" id="btn-reset">Nova igra</button>
+      </div></div>
+    `;
+  }
+}
+
+function bindHost(state){
+  document.querySelectorAll('.quiz-pick').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      db.ref('state/quizId').set(btn.dataset.id);
+    });
+  });
+  document.getElementById('btn-start')?.addEventListener('click', ()=>{
+    db.ref('state').update({ phase:'question', qIndex:0, cluesOpen:1 });
+  });
+  document.getElementById('btn-open-clue')?.addEventListener('click', ()=>{
+    db.ref('state/cluesOpen').set(Math.min(state.cluesOpen + 1, 5));
+  });
+  document.getElementById('btn-reveal')?.addEventListener('click', async ()=>{
+    await scoreQuestion(state.qIndex);
+    db.ref('state').update({ phase:'reveal' });
+  });
+  document.querySelectorAll('.grade-toggle').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      await toggleGrade(state.qIndex, btn.dataset.pid);
+      render();
+    });
+  });
+  document.getElementById('btn-next')?.addEventListener('click', ()=>{
+    const isLast = state.qIndex === activeQuiz().questions.length - 1;
+    if(isLast){
+      db.ref('state').update({ phase:'end' });
+    } else {
+      db.ref('state').update({ phase:'question', qIndex: state.qIndex+1, cluesOpen:1 });
+    }
+  });
+  document.getElementById('btn-reset')?.addEventListener('click', resetGame);
+}
+
+function playerScreenHTML(state, players, scores){
+  const hostName = players[state.hostId]?.name || 'Voditelj';
+
+  if(state.phase === 'lobby'){
+    const active = activePlayers(players);
+    const list = Object.keys(active).map(pid=>`
+      <div class="player-chip"><div class="name-row">
+        <div class="avatar">${initials(active[pid].name)}</div><div>${active[pid].name}${pid===ME.id?' (ti)':''}</div>
+      </div></div>`).join('');
+    return `
+      <div style="padding-top:12px;">
+        <div class="eyebrow">Lobby</div>
+        <h1 class="title-hero">Spremni, ${ME.name}? 🍸</h1>
+        <p class="sub">${hostName} kontrolira tempo. Čekamo da pokrene kviz.</p>
+        <div class="card"><div class="players-list">${list}</div></div>
+      </div>
+      <div class="center-note">Ekran se ažurira uživo...</div>
+    `;
+  }
+
+  if(state.phase === 'question'){
+    const q = activeQuiz().questions[state.qIndex];
+    const myScore = scores[ME.id] || 0;
+    const scoreLine = `<div class="row" style="margin-bottom:4px;"><div class="eyebrow" style="margin-bottom:0;">Pitanje ${state.qIndex+1} / ${activeQuiz().questions.length}</div><div class="score-pill">🏆 ${myScore}</div></div>`;
+    const already = G.answers[ME.id];
+    if(already !== undefined){
+      return `
+        <div style="padding-top:20px;">
+          ${scoreLine}
+          <div style="text-align:center; padding-top:20px;">
+            <div class="big-emoji pop-in">🙌</div>
+            <h1 class="title-hero">Odgovor poslan!</h1>
+            <p class="sub">Čekaj da ${hostName} zatvori pitanje i pokaže rezultate.</p>
+          </div>
+        </div>
+      `;
+    }
+    if(q.type === 'mc'){
+      const opts = q.options.map((o,i)=>`<button class="mc-btn" data-i="${i}">${o}</button>`).join('');
+      return `
+        <div style="padding-top:12px;">
+          ${scoreLine}
+          <h1 class="title-hero" style="font-size:24px;">${q.text}</h1>
+          <div style="margin-top:18px;">${opts}</div>
+        </div>
+      `;
+    } else if(q.type === 'num'){
+      return `
+        <div style="padding-top:12px;">
+          ${scoreLine}
+          <h1 class="title-hero" style="font-size:24px;">${q.text}</h1>
+          <div class="card" style="margin-top:14px;">
+            <input type="number" id="num-input" placeholder="Upiši broj" inputmode="numeric">
+          </div>
+        </div>
+        <div class="footer-bar"><div class="inner">
+          <button class="primary" id="btn-submit-num">Pošalji odgovor</button>
+        </div></div>
+      `;
+    } else if(q.type === 'open'){
+      return `
+        <div style="padding-top:12px;">
+          ${scoreLine}
+          <h1 class="title-hero" style="font-size:24px;">${q.text}</h1>
+          ${q.special ? '<div class="pill" style="margin-top:6px; color:var(--pink);">⭐ Posebna kategorija: 3 boda točno / -1 netočno</div>' : ''}
+          <div class="card" style="margin-top:14px;">
+            <input type="text" id="text-input" placeholder="Upiši odgovor" autocomplete="off">
+          </div>
+        </div>
+        <div class="footer-bar"><div class="inner">
+          <button class="primary" id="btn-submit-text">Pošalji odgovor</button>
+        </div></div>
+      `;
+    } else {
+      const clues = q.clues.slice(0, state.cluesOpen).map((c,i)=>`<div class="player-chip"><div class="name-row"><div class="avatar">${i+1}</div><div>${c}</div></div></div>`).join('');
+      return `
+        <div style="padding-top:12px;">
+          ${scoreLine}
+          <h1 class="title-hero" style="font-size:24px;">${q.text}</h1>
+          <p class="sub">Vrijedi ${6 - state.cluesOpen} ${(6-state.cluesOpen)===1?'bod':'boda'} ako sad pogodiš.</p>
+          <div class="players-list" style="margin-bottom:14px;">${clues}</div>
+          <div class="card">
+            <input type="text" id="text-input" placeholder="Tvoj pogodak" autocomplete="off">
+          </div>
+        </div>
+        <div class="footer-bar"><div class="inner">
+          <button class="primary" id="btn-submit-text">Pošalji odgovor</button>
+        </div></div>
+      `;
+    }
+  }
+
+  if(state.phase === 'reveal'){
+    const q = activeQuiz().questions[state.qIndex];
+    const myPoints = G.round[ME.id] || 0;
+    const answerText = (q.type==='mc') ? q.options[q.correct]
+      : (q.type==='num') ? `${q.correct} ${q.unit||''}`
+      : q.correct;
+    const myAnswer = G.answers[ME.id];
+    const myAnswerText = myAnswer !== undefined
+      ? (q.type==='mc' ? q.options[myAnswer.value] : `${myAnswer.value}${q.type==='num' ? ' ' + (q.unit||'') : ''}`)
+      : 'nisi odgovorio/la';
+    const resultMsg = myPoints > 0 ? `+${myPoints} bodova!` : (myPoints < 0 ? `${myPoints} bod` : 'Ovaj put nula bodova');
+    return `
+      <div style="padding-top:12px; text-align:center;">
+        <div class="big-emoji pop-in">${myPoints>0 ? '🎉' : (myPoints<0 ? '😬' : '😅')}</div>
+        <h1 class="title-hero pop-in">${resultMsg}</h1>
+        <p class="sub">Tvoj odgovor: ${myAnswerText}<br>Točan odgovor: ${answerText}</p>
+        <div class="card" style="text-align:left;">
+          <div style="font-weight:600; font-size:14px; color:var(--muted); margin-bottom:10px;">Ljestvica</div>
+          ${scoreboardHTML(players, scores, ME.id)}
+        </div>
+      </div>
+    `;
+  }
+
+  if(state.phase === 'end'){
+    const rows = Object.keys(players).map(pid=>({ pid, name: players[pid].name, score: scores[pid]||0 }));
+    rows.sort((a,b)=>b.score-a.score);
+    const myRank = rows.findIndex(r=>r.pid===ME.id) + 1;
+    return `
+      <div style="padding-top:12px; text-align:center;">
+        <div class="big-emoji pop-in">${myRank===1 ? '👑' : '🏆'}</div>
+        <h1 class="title-hero">${myRank===1 ? 'Ti si pobjednik!' : `Završio/la si ${myRank}. mjesto`}</h1>
+        <div class="card" style="text-align:left;">${scoreboardHTML(players, scores, ME.id)}</div>
+        <p class="sub">Nazdravlje, ekipo! 🥂</p>
+      </div>
+    `;
+  }
+}
+
+function bindPlayer(state){
+  document.querySelectorAll('.mc-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      document.querySelectorAll('.mc-btn').forEach(b=>b.disabled=true);
+      btn.classList.add('selected');
+      const i = parseInt(btn.dataset.i, 10);
+      db.ref('answers/' + state.qIndex + '/' + ME.id).set({ value: i, ts: firebase.database.ServerValue.TIMESTAMP });
+    });
+  });
+  const numBtn = document.getElementById('btn-submit-num');
+  numBtn?.addEventListener('click', ()=>{
+    const input = document.getElementById('num-input');
+    const val = parseFloat(input.value);
+    if(isNaN(val)) { input.focus(); return; }
+    numBtn.disabled = true;
+    db.ref('answers/' + state.qIndex + '/' + ME.id).set({ value: val, ts: firebase.database.ServerValue.TIMESTAMP });
+  });
+  const textBtn = document.getElementById('btn-submit-text');
+  textBtn?.addEventListener('click', ()=>{
+    const input = document.getElementById('text-input');
+    const val = input.value.trim();
+    if(!val) { input.focus(); return; }
+    textBtn.disabled = true;
+    const payload = { value: val, ts: firebase.database.ServerValue.TIMESTAMP };
+    if(activeQuiz().questions[state.qIndex].type === 'clues'){
+      payload.cluesOpen = state.cluesOpen;
+    }
+    db.ref('answers/' + state.qIndex + '/' + ME.id).set(payload);
+  });
+}
+
+function displayScreenHTML(state, players, scores){
+  const total = Object.keys(activePlayers(players)).length;
+
+  if(!state.hostId || state.phase === 'lobby'){
+    const list = Object.values(activePlayers(players)).map(p=>`
+      <div class="player-chip"><div class="name-row">
+        <div class="avatar">${initials(p.name)}</div><div>${p.name}</div>
+      </div></div>`).join('');
+    return `
+      <div class="stage">
+        <div class="eyebrow">Predigra kviz</div>
+        <h1 class="title-hero" style="font-size:clamp(30px,5vw,50px);">${activeQuiz().title || 'Predigra kviz'}</h1>
+        <p class="sub">Čekamo da voditelj pokrene igru...</p>
+        <div class="card stage-board">
+          <div class="row" style="margin-bottom:10px;">
+            <div style="font-weight:600; font-size:14px; color:var(--muted);">Igrači u lobiju</div>
+            <div class="pill"><span class="dot"></span>${total}</div>
+          </div>
+          <div class="players-list">${list || '<div class="center-note">Čekamo igrače...</div>'}</div>
+        </div>
+      </div>
+    `;
+  }
+
+  if(state.phase === 'question'){
+    const q = activeQuiz().questions[state.qIndex];
+    const answered = Object.keys(G.answers).length;
+    let opts;
+    if(q.type === 'mc'){
+      opts = `<div class="stage-options">${q.options.map(o=>`<div class="mc-btn" style="pointer-events:none;">${o}</div>`).join('')}</div>`;
+    } else if(q.type === 'num'){
+      opts = `<p class="sub">Igrači upisuju svoju procjenu na mobitelu</p>`;
+    } else if(q.type === 'open'){
+      opts = `<p class="sub">Igrači upisuju odgovor na mobitelu${q.special ? ' · ⭐ posebna kategorija' : ''}</p>`;
+    } else {
+      const clues = q.clues.slice(0, state.cluesOpen).map((c,i)=>`<div class="mc-btn" style="pointer-events:none;"><strong>${i+1}.</strong> ${c}</div>`).join('');
+      opts = `<div class="stage-options single-col">${clues}</div><p class="sub" style="margin-top:14px;">Vrijedi ${6 - state.cluesOpen} ${(6-state.cluesOpen)===1?'bod':'boda'} za pogodak sad</p>`;
+    }
+    return `
+      <div class="stage">
+        <div class="eyebrow">Pitanje ${state.qIndex+1} / ${activeQuiz().questions.length}</div>
+        <div class="stage-q">${q.text}</div>
+        ${opts}
+        <div class="pill flash" style="margin-top:20px;"><span class="dot"></span>${answered} / ${total} odgovorilo</div>
+      </div>
+    `;
+  }
+
+  if(state.phase === 'reveal'){
+    const q = activeQuiz().questions[state.qIndex];
+    const answerText = (q.type==='mc') ? q.options[q.correct]
+      : (q.type==='num') ? `${q.correct} ${q.unit||''}`
+      : q.correct;
+    return `
+      <div class="stage">
+        <div class="eyebrow">Točan odgovor</div>
+        <div class="stage-answer">${answerText}</div>
+        <div class="card stage-board">
+          <div style="font-weight:600; font-size:14px; color:var(--muted); margin-bottom:12px;">Ljestvica</div>
+          ${scoreboardHTML(players, scores, null)}
+        </div>
+      </div>
+    `;
+  }
+
+  if(state.phase === 'end'){
+    return `
+      <div class="stage">
+        <div class="big-emoji pop-in" style="font-size:60px;">🏆</div>
+        <h1 class="title-hero" style="font-size:clamp(30px,5vw,50px);">Konačna ljestvica</h1>
+        <div class="card stage-board">${scoreboardHTML(players, scores, null)}</div>
+        <p class="sub">Živjeli! 🥂</p>
+      </div>
+    `;
+  }
+}
+
+function init(){
+  loadSoundPref();
+  document.getElementById('btn-home').addEventListener('click', goHome);
+  document.getElementById('btn-board').addEventListener('click', toggleScoreboard);
+  const soundBtn = document.getElementById('btn-sound');
+  soundBtn.textContent = soundOn ? '🔊' : '🔇';
+  soundBtn.addEventListener('click', toggleSound);
+  document.addEventListener('click', function unlockAudio(){
+    try{ getAudioCtx(); }catch(e){}
+    document.removeEventListener('click', unlockAudio);
+  }, { once: true });
+
+  window.addEventListener('beforeunload', function(e){
+    if(ME){
+      e.preventDefault();
+      e.returnValue = '';
+      return '';
+    }
+  });
+
+  db.ref('quizzes').on('value', snap => { G.quizzes = snap.val() || {}; render(); });
+  db.ref('players').on('value', snap => { G.players = snap.val() || {}; render(); });
+  db.ref('scores').on('value', snap => { G.scores = snap.val() || {}; render(); });
+  db.ref('state').on('value', snap => {
+    const raw = snap.val() || {};
+    const newState = {
+      phase: raw.phase || 'lobby',
+      qIndex: typeof raw.qIndex === 'number' ? raw.qIndex : 0,
+      hostId: raw.hostId || null,
+      quizId: raw.quizId || null,
+      cluesOpen: typeof raw.cluesOpen === 'number' ? raw.cluesOpen : 1
+    };
+    const qChanged = newState.qIndex !== G.state.qIndex;
+    G.state = newState;
+    if(qChanged || !currentQRefs){ attachQuestionListeners(G.state.qIndex); }
+    render();
+  });
+
+  render();
+
+  setInterval(()=>{
+    if(!ME) return;
+    cleanupStaleLobbyPlayers();
+    render();
+  }, 30000);
+}
+
+init();
+</script>
+</body>
+</html>

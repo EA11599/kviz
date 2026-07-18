@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="hr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Predigra kviz — admin</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #071A38; --surface: #0E2A5C; --surface-2: #153B70;
+    --pink: #D9A62E; --amber: #F0C863; --teal: #E0B93D; --violet: #5FA8E8;
+    --text: #F6F1FF; --muted: #A79BC4; --border: rgba(255,255,255,0.09);
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; background: var(--bg); color: var(--text);
+    font-family:'Inter',sans-serif; min-height:100vh;
+  }
+  .wrap{ max-width: 720px; margin:0 auto; padding: 24px 18px 80px; }
+  h1,h2,h3{ font-family:'Baloo 2',sans-serif; font-weight:700; margin:0 0 4px; }
+  .eyebrow{
+    font-family:'Baloo 2',sans-serif; font-weight:700; font-size:13px;
+    letter-spacing:0.1em; text-transform:uppercase; color:var(--amber); margin-bottom:6px;
+  }
+  .sub{ color:var(--muted); font-size:14px; margin-bottom:20px; }
+  .card{ background:var(--surface); border:1px solid var(--border); border-radius:18px; padding:18px; margin-bottom:16px; }
+  label{ display:block; font-size:13px; font-weight:600; color:var(--muted); margin-bottom:6px; }
+  input[type=text], input[type=number], select, textarea{
+    width:100%; background:var(--surface-2); border:1.5px solid var(--border);
+    border-radius:12px; color:var(--text); font-family:'Inter',sans-serif;
+    font-size:15px; padding:11px 13px; outline:none; margin-bottom:12px;
+  }
+  input:focus, select:focus, textarea:focus{ border-color: var(--pink); }
+  button{
+    font-family:'Baloo 2',sans-serif; font-weight:700; font-size:15px;
+    border:none; border-radius:12px; padding:12px 18px; cursor:pointer;
+    background: var(--amber); color:#0B1D3A;
+  }
+  button.primary{ background: linear-gradient(135deg, var(--pink), #F3D77A); color:#0B1D3A; }
+  button.ghost{ background:transparent; border:1.5px solid var(--border); color:var(--text); }
+  button.small{ padding:7px 12px; font-size:13px; }
+  button.danger{ background: #FF5C5C; color: #3A0A0A; }
+  .row{ display:flex; gap:10px; }
+  .row > *{ flex:1; }
+  .quiz-chip{
+    display:flex; align-items:center; justify-content:space-between;
+    background:var(--surface-2); border-radius:12px; padding:12px 14px; margin-bottom:8px;
+    cursor:pointer; border: 1.5px solid transparent;
+  }
+  .quiz-chip.active{ border-color: var(--pink); }
+  .q-item{
+    background: var(--surface-2); border-radius:12px; padding:12px 14px; margin-bottom:8px;
+  }
+  .q-item .qtext{ font-weight:600; margin-bottom:4px; }
+  .q-item .qmeta{ font-size:12px; color:var(--muted); }
+  .pill{
+    display:inline-block; background: var(--surface-2); border-radius:999px;
+    padding:3px 10px; font-size:11px; font-weight:600; color:var(--muted); margin-left:6px;
+  }
+  .toast{
+    position:fixed; bottom:20px; left:50%; transform:translateX(-50%);
+    background: var(--teal); color:#0A2A20; padding:10px 18px; border-radius:999px;
+    font-weight:600; font-size:14px; opacity:0; pointer-events:none; transition: opacity 0.2s ease;
+  }
+  .toast.show{ opacity:1; }
+  .type-toggle{ display:flex; gap:8px; margin-bottom:12px; }
+  .type-toggle button{ flex:1; background:var(--surface-2); color:var(--muted); }
+  .type-toggle button.active{ background: var(--violet); color:white; }
+  hr{ border:none; border-top:1px solid var(--border); margin:16px 0; }
+</style>
+</head>
+<body>
+<div class="wrap" id="app">
+  <div class="eyebrow">Predigra kviz</div>
+  <h1>Baza pitanja</h1>
+  <p class="sub">Ovdje dodaješ kvizove i pitanja bez da diraš kod. Voditelj ih onda bira u lobiju igre.</p>
+  <div id="content"></div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-database-compat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="config.js"></script>
+<script>
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+const SEED_QUIZ = {
+  title: "Opća kultura",
+  questions: [
+    { type:'mc', text:"Koji je najveći ocean na svijetu?", options:["Tihi ocean","Atlantski ocean","Indijski ocean","Arktički ocean"], correct:0 },
+    { type:'num', text:"Koliko kostiju ima odrasli čovjek?", unit:"kostiju", correct:206 },
+    { type:'mc', text:"Koja europska država ima oblik čizme?", options:["Grčka","Italija","Portugal","Norveška"], correct:1 },
+    { type:'mc', text:"Tko je naslikao Mona Lisu?", options:["Vincent van Gogh","Pablo Picasso","Leonardo da Vinci","Michelangelo"], correct:2 },
+    { type:'num', text:"Koje je godine pao Berlinski zid?", unit:"godina", correct:1989 },
+    { type:'mc', text:"Koji je kemijski simbol za zlato?", options:["Ag","Au","Fe","Gd"], correct:1 },
+    { type:'mc', text:"Koja je najveća država na svijetu po površini?", options:["Kanada","Kina","SAD","Rusija"], correct:3 },
+    { type:'mc', text:"Koliko igrača jedne momčadi je na terenu u nogometu?", options:["9","10","11","12"], correct:2 },
+    { type:'mc', text:"Tko je napisao tragediju \"Hamlet\"?", options:["William Shakespeare","Charles Dickens","Lav Tolstoj","Homer"], correct:0 },
+    { type:'mc', text:"Koji je planet najbliži Suncu?", options:["Venera","Merkur","Mars","Zemlja"], correct:1 },
+    { type:'mc', text:"Otprilike koliko metara ima jedna milja?", options:["1000 m","1609 m","2000 m","1852 m"], correct:1 },
+    { type:'mc', text:"Koja je najveća pustinja na svijetu (po površini)?", options:["Sahara","Gobi","Antarktika","Kalahari"], correct:2 },
+    { type:'mc', text:"Koliko slova ima hrvatska abeceda (gajica)?", options:["26","28","30","32"], correct:2 },
+    { type:'mc', text:"Koji je najmanji planet u Sunčevom sustavu?", options:["Mars","Merkur","Venera","Pluton"], correct:1 },
+    { type:'mc', text:"Iz koje zemlje potječe pizza Margherita?", options:["Francuska","Italija","Španjolska","Grčka"], correct:1 },
+    { type:'num', text:"Koje je godine osnovan Facebook?", unit:"godina", correct:2004 },
+    { type:'mc', text:"Koji je nacionalni sport Japana?", options:["Sumo","Karate","Judo","Bejzbol"], correct:0 },
+    { type:'mc', text:"Koliko kontinenata postoji po klasičnoj podjeli?", options:["5","6","7","8"], correct:2 },
+    { type:'num', text:"Koliko zubi ima odrasli čovjek (uključujući umnjake)?", unit:"zubi", correct:32 },
+    { type:'mc', text:"Tko je bio prvi čovjek koji je hodao po Mjesecu?", options:["Buzz Aldrin","Neil Armstrong","Yuri Gagarin","John Glenn"], correct:1 },
+    { type:'mc', text:"Koja je službena valuta Japana?", options:["Yuan","Won","Jen","Rupija"], correct:2 },
+    { type:'num', text:"Koje je godine Hrvatska ušla u Europsku uniju?", unit:"godina", correct:2013 }
+  ]
+};
+
+let QUIZZES = {};
+let POOL = {};
+let selectedQuizId = null;
+let newQType = 'mc';
+let parsedQuestions = [];
+let parsedErrors = [];
+let importTarget = 'new';
+
+function uid(){ return Math.random().toString(36).slice(2,10); }
+function toast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 1800);
+}
+
+db.ref('quizzes').on('value', snap=>{
+  QUIZZES = snap.val() || {};
+  if(selectedQuizId && !QUIZZES[selectedQuizId]) selectedQuizId = null;
+  render();
+});
+db.ref('pool').on('value', snap=>{
+  POOL = snap.val() || {};
+  render();
+});
+
+function parseImportRows(rows){
+  const questions = [];
+  const errors = [];
+  rows.forEach((row, i)=>{
+    const rowNum = i + 2; // +2 jer red 1 je zaglavlje, a i je 0-indeksiran
+    const pitanje = String(row.pitanje || '').trim();
+    if(!pitanje) return; // prazan red, preskoči tiho
+    const tip = String(row.tip || '').trim().toLowerCase();
+    const kategorija = String(row.kategorija || '').trim();
+
+    if(tip === 'abcd' || tip === 'izbor'){
+      const opts = ['opcijaA','opcijaB','opcijaC','opcijaD'].map(k => String(row[k] || '').trim());
+      if(opts.some(o=>!o)){ errors.push(`Redak ${rowNum}: nedostaje jedna od opcija A-D.`); return; }
+      const correctNum = parseInt(row.tocno, 10);
+      if(!correctNum || correctNum < 1 || correctNum > 4){ errors.push(`Redak ${rowNum}: 'tocno' mora biti broj 1-4.`); return; }
+      questions.push({ type:'mc', text: pitanje, options: opts, correct: correctNum - 1, category: kategorija });
+    } else if(tip === 'broj'){
+      const correctNum = parseFloat(row.tocno);
+      if(isNaN(correctNum)){ errors.push(`Redak ${rowNum}: 'tocno' mora biti broj.`); return; }
+      questions.push({ type:'num', text: pitanje, correct: correctNum, unit: String(row.jedinica||'').trim(), category: kategorija });
+    } else if(tip === 'klasicno'){
+      const correctText = String(row.tocno || '').trim();
+      if(!correctText){ errors.push(`Redak ${rowNum}: 'tocno' ne smije biti prazno.`); return; }
+      const special = String(row.posebna_kategorija || '').trim().toUpperCase() === 'DA';
+      questions.push({ type:'open', text: pitanje, correct: correctText, special, category: kategorija });
+    } else if(tip === 'natuknice'){
+      const clues = ['natuknica1','natuknica2','natuknica3','natuknica4','natuknica5'].map(k => String(row[k] || '').trim());
+      if(clues.some(c=>!c)){ errors.push(`Redak ${rowNum}: nedostaje jedna od 5 natuknica.`); return; }
+      const correctText = String(row.tocno || '').trim();
+      if(!correctText){ errors.push(`Redak ${rowNum}: 'tocno' ne smije biti prazno.`); return; }
+      questions.push({ type:'clues', text: pitanje, clues, correct: correctText, category: kategorija });
+    } else {
+      errors.push(`Redak ${rowNum}: stupac 'tip' mora biti 'abcd', 'klasicno', 'broj' ili 'natuknice' (piše '${row.tip||''}').`);
+    }
+  });
+  return { questions, errors };
+}
+
+function handleImportFile(file){
+  const reader = new FileReader();
+  reader.onload = (e)=>{
+    try{
+      const data = new Uint8Array(e.target.result);
+      const wb = XLSX.read(data, { type:'array' });
+      const sheetName = wb.SheetNames.includes('Pitanja') ? 'Pitanja' : wb.SheetNames[0];
+      const ws = wb.Sheets[sheetName];
+      const rows = XLSX.utils.sheet_to_json(ws, { defval:'' });
+      const result = parseImportRows(rows);
+      parsedQuestions = result.questions;
+      parsedErrors = result.errors;
+      render();
+    }catch(err){
+      toast('Ne mogu pročitati datoteku - provjeri format');
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+async function doImport(){
+  if(parsedQuestions.length === 0) return;
+  const withCategory = parsedQuestions.map(q => ({...q}));
+  const cleanForQuiz = withCategory.map(({category, ...rest}) => rest);
+
+  let targetId = importTarget;
+  if(importTarget === 'new'){
+    const title = document.getElementById('import-new-title').value.trim();
+    if(!title){ toast('Upiši naziv novog kviza'); return; }
+    targetId = uid();
+    await db.ref('quizzes/' + targetId).set({ title, questions: [] });
+  }
+  const quiz = QUIZZES[targetId] || { title:'', questions: [] };
+  const merged = (quiz.questions || []).concat(cleanForQuiz);
+  await db.ref('quizzes/' + targetId + '/questions').set(merged);
+
+  const poolUpdates = {};
+  withCategory.forEach(q=>{
+    const poolId = uid();
+    poolUpdates[poolId] = { ...q, addedAt: Date.now() };
+  });
+  await db.ref('pool').update(poolUpdates);
+
+  selectedQuizId = targetId;
+  parsedQuestions = [];
+  parsedErrors = [];
+  toast(`Uvezeno ${cleanForQuiz.length} pitanja`);
+}
+
+async function generateRandomQuiz(){
+  const poolIds = Object.keys(POOL);
+  if(poolIds.length === 0){ toast('Fond pitanja je prazan - prvo uvezi ili dodaj pitanja'); return; }
+  const count = parseInt(document.getElementById('gen-count').value, 10) || 15;
+  const category = document.getElementById('gen-category').value;
+
+  let candidates = poolIds.map(id => POOL[id]);
+  if(category){ candidates = candidates.filter(q => (q.category||'') === category); }
+  if(candidates.length === 0){ toast('Nema pitanja u toj kategoriji'); return; }
+
+  // Fisher-Yates shuffle
+  for(let i = candidates.length - 1; i > 0; i--){
+    const j = Math.floor(Math.random() * (i+1));
+    [candidates[i], candidates[j]] = [candidates[j], candidates[i]];
+  }
+  const picked = candidates.slice(0, Math.min(count, candidates.length))
+    .map(({category, addedAt, ...rest}) => rest);
+
+  const title = 'Nasumični kviz' + (category ? ' — ' + category : '') + ' (' + picked.length + ' pitanja)';
+  const newId = uid();
+  await db.ref('quizzes/' + newId).set({ title, questions: picked });
+  selectedQuizId = newId;
+  toast('Nasumični kviz generiran');
+}
+
+function render(){
+  const c = document.getElementById('content');
+  const quizIds = Object.keys(QUIZZES);
+  const poolCategories = [...new Set(Object.values(POOL).map(q=>q.category).filter(Boolean))];
+  const poolCount = Object.keys(POOL).length;
+
+  const quizList = quizIds.length
+    ? quizIds.map(id=>{
+        const q = QUIZZES[id];
+        return `
+          <div class="quiz-chip ${id===selectedQuizId?'active':''}" data-id="${id}">
+            <div>
+              <strong>${q.title || 'Bez naziva'}</strong>
+              <span class="pill">${(q.questions||[]).length} pitanja</span>
+            </div>
+            <button class="small danger" data-del-quiz="${id}">Obriši</button>
+          </div>`;
+      }).join('')
+    : `<p class="sub">Još nema kvizova.</p>`;
+
+  const importPreview = parsedQuestions.length || parsedErrors.length
+    ? `
+      <div class="q-item" style="margin-top:10px;">
+        <div class="qtext">Pronađeno ${parsedQuestions.length} ispravnih pitanja${parsedErrors.length ? `, ${parsedErrors.length} redaka s greškom` : ''}.</div>
+        ${parsedErrors.length ? `<div class="qmeta" style="color:#F0B4B4;">${parsedErrors.join('<br>')}</div>` : ''}
+      </div>
+    `
+    : '';
+
+  const importCard = `
+    <div class="card">
+      <h3>Uvezi pitanja iz predloška</h3>
+      <p class="sub">Popuni <a href="predlozak_pitanja.xlsx" style="color:var(--teal);">predlozak_pitanja.xlsx</a>, spremi, i učitaj ovdje.</p>
+      <input type="file" id="import-file" accept=".xlsx,.xls,.csv">
+      ${importPreview}
+      ${ parsedQuestions.length ? `
+        <hr>
+        <label>Uvezi u</label>
+        <select id="import-target">
+          <option value="new" ${importTarget==='new'?'selected':''}>Novi kviz</option>
+          ${quizIds.map(id=>`<option value="${id}" ${importTarget===id?'selected':''}>${QUIZZES[id].title||'Bez naziva'}</option>`).join('')}
+        </select>
+        ${ importTarget === 'new' ? `<label>Naziv novog kviza</label><input type="text" id="import-new-title" placeholder="npr. Filmovi i glazba">` : '' }
+        <button class="primary" id="btn-do-import">Uvezi ${parsedQuestions.length} pitanja</button>
+      ` : ''}
+    </div>
+  `;
+
+  const poolCard = `
+    <div class="card">
+      <h3>Fond pitanja <span class="pill">${poolCount} ukupno</span></h3>
+      <p class="sub">Sva uvezena pitanja idu i ovdje. Kad fond naraste, generiraj nasumični kviz iz njega.</p>
+      <div class="row">
+        <div><label>Broj pitanja</label><input type="number" id="gen-count" value="15" min="1"></div>
+        <div><label>Kategorija (opcionalno)</label>
+          <select id="gen-category">
+            <option value="">Sve kategorije</option>
+            ${poolCategories.map(cat=>`<option value="${cat}">${cat}</option>`).join('')}
+          </select>
+        </div>
+      </div>
+      <button class="primary" id="btn-generate" ${poolCount===0?'disabled':''}>Generiraj nasumični kviz</button>
+    </div>
+  `;
+
+  let questionsSection = '';
+  if(selectedQuizId && QUIZZES[selectedQuizId]){
+    const quiz = QUIZZES[selectedQuizId];
+    const items = (quiz.questions || []).map((q,i)=>{
+      const meta = q.type === 'mc'
+        ? `ABCD · točno: ${q.options[q.correct]}`
+        : q.type === 'num'
+        ? `procjena broja · točno: ${q.correct} ${q.unit||''}`
+        : q.type === 'open'
+        ? `klasično${q.special ? ' · posebna kategorija (3/-1)' : ''} · točno: ${q.correct}`
+        : `natuknice (5) · točno: ${q.correct}`;
+      return `
+        <div class="q-item">
+          <div class="qtext">${i+1}. ${q.text}</div>
+          <div class="qmeta">${meta}</div>
+          <div style="margin-top:8px;"><button class="small danger" data-del-q="${i}">Obriši pitanje</button></div>
+        </div>`;
+    }).join('');
+
+    questionsSection = `
+      <div class="card">
+        <div class="row">
+          <div><label>Naziv kviza</label><input type="text" id="quiz-title" value="${quiz.title || ''}"></div>
+        </div>
+        <button class="ghost small" id="btn-rename-quiz">Spremi naziv</button>
+      </div>
+
+      <div class="card">
+        <h3>Pitanja (${(quiz.questions||[]).length})</h3>
+        ${items || '<p class="sub">Još nema pitanja u ovom kvizu.</p>'}
+      </div>
+
+      <div class="card">
+        <h3>Dodaj novo pitanje</h3>
+        <div class="type-toggle">
+          <button type="button" id="type-mc" class="${newQType==='mc'?'active':''}">ABCD</button>
+          <button type="button" id="type-open" class="${newQType==='open'?'active':''}">Klasično</button>
+          <button type="button" id="type-num" class="${newQType==='num'?'active':''}">Procjena</button>
+          <button type="button" id="type-clues" class="${newQType==='clues'?'active':''}">Natuknice</button>
+        </div>
+        <label>${newQType === 'clues' ? 'Naslov / tema (npr. "Tko je ova osoba?")' : 'Tekst pitanja'}</label>
+        <textarea id="new-q-text" rows="2" placeholder="npr. Koji je najveći planet u Sunčevom sustavu?"></textarea>
+        ${ newQType === 'mc' ? `
+          <label>Opcija A</label><input type="text" id="opt-0" placeholder="Opcija A">
+          <label>Opcija B</label><input type="text" id="opt-1" placeholder="Opcija B">
+          <label>Opcija C</label><input type="text" id="opt-2" placeholder="Opcija C">
+          <label>Opcija D</label><input type="text" id="opt-3" placeholder="Opcija D">
+          <label>Koja je točna? (upiši broj 1-4)</label>
+          <input type="number" id="correct-idx" min="1" max="4" placeholder="npr. 2">
+        ` : newQType === 'num' ? `
+          <div class="row">
+            <div><label>Točan broj</label><input type="number" id="correct-num" placeholder="npr. 42"></div>
+            <div><label>Jedinica (opcionalno)</label><input type="text" id="unit" placeholder="npr. godina, kg..."></div>
+          </div>
+        ` : newQType === 'open' ? `
+          <label>Točan odgovor (tekst)</label>
+          <input type="text" id="correct-text" placeholder="npr. Canberra">
+          <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+            <input type="checkbox" id="special-cat" style="width:auto; margin:0;"> Posebna kategorija (3 boda točno / -1 netočno)
+          </label>
+        ` : `
+          <label>Natuknica 1 (najteža)</label><input type="text" id="clue-0" placeholder="Prva, najteža natuknica">
+          <label>Natuknica 2</label><input type="text" id="clue-1" placeholder="Druga natuknica">
+          <label>Natuknica 3</label><input type="text" id="clue-2" placeholder="Treća natuknica">
+          <label>Natuknica 4</label><input type="text" id="clue-3" placeholder="Četvrta natuknica">
+          <label>Natuknica 5 (najlakša)</label><input type="text" id="clue-4" placeholder="Peta, najlakša natuknica">
+          <label>Točan odgovor</label><input type="text" id="correct-text" placeholder="npr. Nikola Tesla">
+        `}
+        <button class="primary" id="btn-add-q">Dodaj pitanje</button>
+      </div>
+    `;
+  }
+
+  const maintenanceCard = `
+    <div class="card">
+      <h3>Održavanje</h3>
+      <p class="sub">Koristi ovo ako se u lobiju gomilaju "duhovi" - stari igrači koji su zapravo davno otišli, ili ako nitko ne može preuzeti ulogu voditelja jer je "zaglavljena".</p>
+      <button class="ghost" id="btn-clear-players">Očisti igrače i oslobodi voditelja</button>
+      <div style="height:8px;"></div>
+      <button class="ghost" id="btn-reset-game">Potpuni reset (i odabir kviza se briše)</button>
+    </div>
+  `;
+
+  c.innerHTML = `
+    ${importCard}
+    ${poolCard}
+    <div class="card">
+      <h3>Kvizovi</h3>
+      ${quizList}
+      <hr>
+      <label>Naziv novog kviza</label>
+      <div class="row">
+        <input type="text" id="new-quiz-title" placeholder="npr. Filmovi i glazba">
+        <button class="primary" id="btn-add-quiz" style="flex:0 0 auto;">Kreiraj</button>
+      </div>
+      ${ quizIds.length === 0 ? `<button class="ghost" id="btn-seed" style="margin-top:8px;">Napuni bazu s početnim kvizom "Opća kultura" (22 pitanja)</button>` : '' }
+    </div>
+    ${questionsSection}
+    ${maintenanceCard}
+  `;
+
+  bind();
+}
+
+function bind(){
+  document.getElementById('import-file')?.addEventListener('change', (e)=>{
+    const file = e.target.files[0];
+    if(file) handleImportFile(file);
+  });
+  document.getElementById('import-target')?.addEventListener('change', (e)=>{
+    importTarget = e.target.value;
+    render();
+  });
+  document.getElementById('btn-do-import')?.addEventListener('click', doImport);
+  document.getElementById('btn-generate')?.addEventListener('click', generateRandomQuiz);
+  document.getElementById('btn-clear-players')?.addEventListener('click', async ()=>{
+    if(!confirm('Ukloniti sve igrače i osloboditi ulogu voditelja? Odabrani kviz ostaje isti.')) return;
+    await db.ref('players').remove();
+    await db.ref('scores').remove();
+    await db.ref('answers').remove();
+    await db.ref('round').remove();
+    const stateSnap = await db.ref('state').once('value');
+    const quizId = (stateSnap.val() || {}).quizId || null;
+    await db.ref('state').set({ phase:'lobby', qIndex:0, hostId:null, quizId });
+    toast('Lobby očišćen, voditelj oslobođen');
+  });
+  document.getElementById('btn-reset-game')?.addEventListener('click', async ()=>{
+    if(!confirm('Resetirati cijelu tekuću igru? Igrači, bodovi i voditelj se brišu.')) return;
+    await db.ref('players').remove();
+    await db.ref('scores').remove();
+    await db.ref('answers').remove();
+    await db.ref('round').remove();
+    await db.ref('state').set({ phase:'lobby', qIndex:0, hostId:null, quizId:null });
+    toast('Igra resetirana');
+  });
+
+  document.querySelectorAll('.quiz-chip').forEach(el=>{
+    el.addEventListener('click', (e)=>{
+      if(e.target.closest('[data-del-quiz]')) return;
+      selectedQuizId = el.dataset.id;
+      newQType = 'mc';
+      render();
+    });
+  });
+  document.querySelectorAll('[data-del-quiz]').forEach(btn=>{
+    btn.addEventListener('click', async (e)=>{
+      e.stopPropagation();
+      if(!confirm('Obrisati ovaj kviz i sva njegova pitanja?')) return;
+      await db.ref('quizzes/' + btn.dataset.delQuiz).remove();
+      toast('Kviz obrisan');
+    });
+  });
+  document.getElementById('btn-add-quiz')?.addEventListener('click', async ()=>{
+    const title = document.getElementById('new-quiz-title').value.trim();
+    if(!title) return;
+    const id = uid();
+    await db.ref('quizzes/' + id).set({ title, questions: [] });
+    selectedQuizId = id;
+    toast('Kviz kreiran');
+  });
+  document.getElementById('btn-seed')?.addEventListener('click', async ()=>{
+    const id = uid();
+    await db.ref('quizzes/' + id).set(SEED_QUIZ);
+    selectedQuizId = id;
+    toast('Početni kviz dodan');
+  });
+  document.getElementById('btn-rename-quiz')?.addEventListener('click', async ()=>{
+    const title = document.getElementById('quiz-title').value.trim();
+    if(!title) return;
+    await db.ref('quizzes/' + selectedQuizId + '/title').set(title);
+    toast('Naziv spremljen');
+  });
+  document.getElementById('type-mc')?.addEventListener('click', ()=>{ newQType='mc'; render(); });
+  document.getElementById('type-num')?.addEventListener('click', ()=>{ newQType='num'; render(); });
+  document.getElementById('type-open')?.addEventListener('click', ()=>{ newQType='open'; render(); });
+  document.getElementById('type-clues')?.addEventListener('click', ()=>{ newQType='clues'; render(); });
+
+  document.querySelectorAll('[data-del-q]').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      const idx = parseInt(btn.dataset.delQ, 10);
+      const quiz = QUIZZES[selectedQuizId];
+      const questions = (quiz.questions || []).slice();
+      questions.splice(idx, 1);
+      await db.ref('quizzes/' + selectedQuizId + '/questions').set(questions);
+      toast('Pitanje obrisano');
+    });
+  });
+
+  document.getElementById('btn-add-q')?.addEventListener('click', async ()=>{
+    const text = document.getElementById('new-q-text').value.trim();
+    if(!text){ toast('Upiši tekst pitanja'); return; }
+
+    let newQuestion;
+    if(newQType === 'mc'){
+      const options = [0,1,2,3].map(i => document.getElementById('opt-'+i).value.trim());
+      if(options.some(o=>!o)){ toast('Popuni sve 4 opcije'); return; }
+      const correctNum = parseInt(document.getElementById('correct-idx').value, 10);
+      if(!correctNum || correctNum < 1 || correctNum > 4){ toast('Upiši točnu opciju (1-4)'); return; }
+      newQuestion = { type:'mc', text, options, correct: correctNum - 1 };
+    } else if(newQType === 'open'){
+      const correctText = document.getElementById('correct-text').value.trim();
+      if(!correctText){ toast('Upiši točan odgovor'); return; }
+      const special = document.getElementById('special-cat').checked;
+      newQuestion = { type:'open', text, correct: correctText, special };
+    } else if(newQType === 'clues'){
+      const clues = [0,1,2,3,4].map(i => document.getElementById('clue-'+i).value.trim());
+      if(clues.some(c=>!c)){ toast('Popuni svih 5 natuknica'); return; }
+      const correctText = document.getElementById('correct-text').value.trim();
+      if(!correctText){ toast('Upiši točan odgovor'); return; }
+      newQuestion = { type:'clues', text, clues, correct: correctText };
+    } else {
+      const correctNum = parseFloat(document.getElementById('correct-num').value);
+      if(isNaN(correctNum)){ toast('Upiši točan broj'); return; }
+      const unit = document.getElementById('unit').value.trim();
+      newQuestion = { type:'num', text, correct: correctNum, unit };
+    }
+
+    const quiz = QUIZZES[selectedQuizId];
+    const questions = (quiz.questions || []).slice();
+    questions.push(newQuestion);
+    await db.ref('quizzes/' + selectedQuizId + '/questions').set(questions);
+    toast('Pitanje dodano');
+  });
+}
+
+render();
+</script>
+</body>
+</html>
