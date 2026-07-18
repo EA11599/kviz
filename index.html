@@ -194,15 +194,29 @@
     padding: 24px 22px; display:flex; align-items:center; justify-content:center;
   }
   /* Kad je zaslon širok (laptop), voditelj/igrač ekran naraste - isti raspored, veći tekst */
-  .wide-mode .title-hero{ font-size: clamp(30px, 4vw, 46px); text-align:center; }
-  .wide-mode .eyebrow{ font-size: 16px; text-align:center; }
-  .wide-mode .sub{ font-size: 18px; text-align:center; }
-  .wide-mode .card{ padding: 28px; }
-  .wide-mode .mc-btn{ font-size: 20px; padding: 20px 22px; text-align:center; }
-  .wide-mode .timer-banner{ font-size: 44px; max-width: 480px; margin-left:auto; margin-right:auto; }
-  .wide-mode .timer-banner.critical{ font-size: 110px; }
-  .wide-mode .footer-bar .inner{ max-width: 480px; }
-  .wide-mode .card input[type=text], .wide-mode .card input[type=number]{ font-size: 20px; padding: 18px; }
+  .wide-mode .title-hero{ font-size: clamp(38px, 5vw, 58px); text-align:center; }
+  .wide-mode .eyebrow{ font-size: 19px; text-align:center; }
+  .wide-mode .sub{ font-size: 21px; text-align:center; }
+  .wide-mode .card{ padding: 32px; }
+  .wide-mode .mc-btn{ font-size: 24px; padding: 24px 26px; text-align:center; }
+  .wide-mode .timer-banner{ font-size: 52px; max-width: 520px; margin-left:auto; margin-right:auto; }
+  .wide-mode .timer-banner.critical{ font-size: 130px; }
+  .wide-mode .footer-bar .inner{ max-width: 560px; }
+  .wide-mode .card input[type=text], .wide-mode .card input[type=number]{ font-size: 24px; padding: 20px; }
+  .wide-mode button{ font-size: 20px; padding: 18px 24px; }
+  .wide-mode button.small{ font-size: 15px; padding: 8px 14px; }
+  .wide-mode .type-badge{ font-size: 17px; padding: 8px 18px; }
+  .wide-mode .qcount{ font-size: 18px; }
+  .wide-mode .player-chip{ padding: 16px 18px; font-size: 19px; }
+  .wide-mode .player-chip .avatar{ width: 44px; height: 44px; font-size: 17px; }
+  .wide-mode .score-pill{ font-size: 18px; padding: 10px 18px; }
+  .wide-mode .pill{ font-size: 16px; padding: 8px 18px; }
+  .wide-mode .badge-host{ font-size: 14px; padding: 5px 12px; }
+  .wide-mode .score-row{ padding: 18px 20px; }
+  .wide-mode .points{ font-size: 24px; }
+  .wide-mode .rank{ font-size: 24px; width: 34px; }
+  .wide-mode .center-note{ font-size: 18px; }
+  .wide-mode .link-box{ font-size: 16px; padding: 16px 18px; }
   .home-btn{
     position: fixed; top: 14px; left: 14px; z-index: 10;
     width: auto; background: var(--surface); border: 1.5px solid var(--border);
@@ -644,6 +658,16 @@ async function toggleGrade(qIndex, pid){
   await db.ref('scores').set(scores);
 }
 
+function answeredStatusHTML(players){
+  const ids = Object.keys(players);
+  if(ids.length === 0) return '<div class="center-note" style="padding:8px;">Nema igrača.</div>';
+  return ids.map(pid=>{
+    const name = players[pid].name;
+    const done = G.answers[pid] !== undefined;
+    return `<div class="player-chip"><div class="name-row"><div class="avatar">${initials(name)}</div><div>${name}</div></div><div style="font-size:19px;">${done ? '✅' : '⏳'}</div></div>`;
+  }).join('');
+}
+
 function scoreboardHTML(players, scores, meId){
   const rows = Object.keys(players).map(pid=>({ pid, name: players[pid].name, score: scores[pid]||0 }));
   rows.sort((a,b)=>b.score-a.score);
@@ -722,6 +746,7 @@ function goHome(){
 }
 
 let lastRenderKey = null;
+let autoClosedFor = null;
 
 function render(){
   const activeEl = document.activeElement;
@@ -789,7 +814,16 @@ function render(){
     db.ref('scores').onDisconnect().remove();
     db.ref('answers').onDisconnect().remove();
     db.ref('round').onDisconnect().remove();
-    app.innerHTML = hostScreenHTML(G.state, gamePlayers(), G.scores) || '<div class="center-note">Učitavanje stanja igre...</div>';
+    const hostPlayers = gamePlayers();
+    if(G.state.phase === 'question'){
+      const totalP = Object.keys(hostPlayers).length;
+      const answeredP = Object.keys(G.answers).length;
+      if(totalP > 0 && answeredP >= totalP && autoClosedFor !== G.state.qIndex){
+        autoClosedFor = G.state.qIndex;
+        scoreQuestion(G.state.qIndex).then(()=> db.ref('state').update({ phase:'reveal' }));
+      }
+    }
+    app.innerHTML = hostScreenHTML(G.state, hostPlayers, G.scores) || '<div class="center-note">Učitavanje stanja igre...</div>';
     bindHost(G.state);
     maybeFireEffects(G.state, true, false);
   } else {
@@ -990,10 +1024,8 @@ function hostScreenHTML(state, players, scores){
         ${questionTypeBadgeHTML(q)}
         ${cluesBlock}
         <div class="card">
-          <div class="qcount">Odgovorili</div>
-          <div class="row">
-            <div class="pill flash"><span class="dot"></span>${answered} / ${total} igrača</div>
-          </div>
+          <div class="qcount">Tko je odgovorio</div>
+          ${answeredStatusHTML(players)}
         </div>
       </div>
       <div class="footer-bar"><div class="inner">
@@ -1346,7 +1378,10 @@ function displayScreenHTML(state, players, scores){
         ${questionTypeBadgeHTML(q)}
         <div class="stage-q">${q.text}</div>
         ${opts}
-        <div class="pill flash" style="margin-top:20px;"><span class="dot"></span>${answered} / ${total} odgovorilo</div>
+        <div class="card stage-board" style="margin-top:20px;">
+          <div style="font-weight:600; font-size:14px; color:var(--muted); margin-bottom:10px;">Tko je odgovorio</div>
+          ${answeredStatusHTML(players)}
+        </div>
       </div>
     `;
   }
@@ -1434,7 +1469,6 @@ function init(){
     render();
   }, 30000);
 
-  let autoClosedFor = null;
   setInterval(async ()=>{
     const el = document.getElementById('timer-num');
     const remaining = getRemainingSeconds();
