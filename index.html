@@ -237,6 +237,8 @@
     padding: 6px 14px; font-size: 13px; font-weight: 700; color: var(--teal);
     font-family:'Baloo 2',sans-serif;
   }
+  .timer-pill{ color: var(--violet); }
+  .timer-pill.timer-warn{ color: #E2585A; animation: pop 0.4s ease infinite alternate; }
   .modal-backdrop{
     position: fixed; inset: 0; background: rgba(4,10,24,0.72);
     z-index: 40; display:flex; align-items:flex-end; justify-content:center;
@@ -311,6 +313,28 @@ let currentQRefs = null; // { answersRef, roundRef } - da ih možemo odspojiti p
 
 function activeQuiz(){
   return (G.state.quizId && G.quizzes[G.state.quizId]) || { title: '', questions: [] };
+}
+
+/* ---------- Timer po tipu pitanja ---------- */
+function getTimerConfig(){
+  const q = activeQuiz().questions[G.state.qIndex];
+  if(!q) return null;
+  const timers = activeQuiz().timers || {};
+  const cfg = timers[q.type];
+  if(!cfg || !cfg.on) return null;
+  return cfg;
+}
+function getRemainingSeconds(){
+  const cfg = getTimerConfig();
+  if(!cfg || !G.state.questionStartedAt) return null;
+  const elapsed = (Date.now() - G.state.questionStartedAt) / 1000;
+  return Math.max(0, Math.ceil(cfg.sec - elapsed));
+}
+function timerPillHTML(){
+  const cfg = getTimerConfig();
+  if(!cfg) return '';
+  const remaining = getRemainingSeconds();
+  return `<div class="score-pill timer-pill ${remaining<=5?'timer-warn':''}" id="timer-pill">⏱️ <span id="timer-num">${remaining}</span>s</div>`;
 }
 
 /* ---------- Zvuk (generiran u kodu, bez vanjskih fajlova) ---------- */
@@ -642,7 +666,8 @@ function render(){
   const activeEl = document.activeElement;
   const typingInInput = activeEl && (activeEl.id === 'text-input' || activeEl.id === 'num-input');
   const myAnswered = (ME && G.answers[ME.id] !== undefined);
-  const currentKey = (ME ? ME.id + ':' + ME.role : 'none') + ':' + G.state.phase + ':' + G.state.qIndex + ':' + G.state.cluesOpen + ':' + myAnswered;
+  const timeUpNow = !!(getTimerConfig() && getRemainingSeconds() <= 0);
+  const currentKey = (ME ? ME.id + ':' + ME.role : 'none') + ':' + G.state.phase + ':' + G.state.qIndex + ':' + G.state.cluesOpen + ':' + myAnswered + ':' + timeUpNow;
   if(typingInInput && currentKey === lastRenderKey){
     return; // ništa relevantno za ovaj ekran se nije promijenilo - ne diraj input dok korisnik piše
   }
@@ -851,7 +876,10 @@ function hostScreenHTML(state, players, scores){
     ` : '';
     return `
       <div style="padding-top:12px;">
-        <div class="eyebrow">Pitanje ${state.qIndex+1} / ${activeQuiz().questions.length} <span class="badge-host">HOST</span></div>
+        <div class="row" style="margin-bottom:4px;">
+          <div class="eyebrow" style="margin-bottom:0;">Pitanje ${state.qIndex+1} / ${activeQuiz().questions.length} <span class="badge-host">HOST</span></div>
+          ${timerPillHTML()}
+        </div>
         <h1 class="title-hero" style="font-size:26px;">${q.text}</h1>
         ${cluesBlock}
         <div class="card">
@@ -942,7 +970,7 @@ function bindHost(state){
     });
   });
   document.getElementById('btn-start')?.addEventListener('click', ()=>{
-    db.ref('state').update({ phase:'question', qIndex:0, cluesOpen:1 });
+    db.ref('state').update({ phase:'question', qIndex:0, cluesOpen:1, questionStartedAt: firebase.database.ServerValue.TIMESTAMP });
   });
   document.getElementById('btn-open-clue')?.addEventListener('click', ()=>{
     db.ref('state/cluesOpen').set(Math.min(state.cluesOpen + 1, 5));
@@ -962,7 +990,7 @@ function bindHost(state){
     if(isLast){
       db.ref('state').update({ phase:'end' });
     } else {
-      db.ref('state').update({ phase:'question', qIndex: state.qIndex+1, cluesOpen:1 });
+      db.ref('state').update({ phase:'question', qIndex: state.qIndex+1, cluesOpen:1, questionStartedAt: firebase.database.ServerValue.TIMESTAMP });
     }
   });
   document.getElementById('btn-reset')?.addEventListener('click', resetGame);
@@ -991,8 +1019,9 @@ function playerScreenHTML(state, players, scores){
   if(state.phase === 'question'){
     const q = activeQuiz().questions[state.qIndex];
     const myScore = scores[ME.id] || 0;
-    const scoreLine = `<div class="row" style="margin-bottom:4px;"><div class="eyebrow" style="margin-bottom:0;">Pitanje ${state.qIndex+1} / ${activeQuiz().questions.length}</div><div class="score-pill">🏆 ${myScore}</div></div>`;
+    const scoreLine = `<div class="row" style="margin-bottom:4px;"><div class="eyebrow" style="margin-bottom:0;">Pitanje ${state.qIndex+1} / ${activeQuiz().questions.length}</div><div class="row" style="gap:8px;">${timerPillHTML()}<div class="score-pill">🏆 ${myScore}</div></div></div>`;
     const already = G.answers[ME.id];
+    const timeUp = getTimerConfig() && getRemainingSeconds() <= 0;
     if(already !== undefined){
       return `
         <div style="padding-top:20px;">
@@ -1000,6 +1029,18 @@ function playerScreenHTML(state, players, scores){
           <div style="text-align:center; padding-top:20px;">
             <div class="big-emoji pop-in">🙌</div>
             <h1 class="title-hero">Odgovor poslan!</h1>
+            <p class="sub">Čekaj da ${hostName} zatvori pitanje i pokaže rezultate.</p>
+          </div>
+        </div>
+      `;
+    }
+    if(timeUp){
+      return `
+        <div style="padding-top:20px;">
+          ${scoreLine}
+          <div style="text-align:center; padding-top:20px;">
+            <div class="big-emoji pop-in">⏰</div>
+            <h1 class="title-hero">Vrijeme je isteklo!</h1>
             <p class="sub">Čekaj da ${hostName} zatvori pitanje i pokaže rezultate.</p>
           </div>
         </div>
@@ -1071,11 +1112,15 @@ function playerScreenHTML(state, players, scores){
       ? (q.type==='mc' ? q.options[myAnswer.value] : `${myAnswer.value}${q.type==='num' ? ' ' + (q.unit||'') : ''}`)
       : 'nisi odgovorio/la';
     const resultMsg = myPoints > 0 ? `+${myPoints} bodova!` : (myPoints < 0 ? `${myPoints} bod` : 'Ovaj put nula bodova');
+    const partyLine = (activeQuiz().partyMode && myPoints <= 0)
+      ? '<p class="pill" style="margin:10px auto; color:var(--pink); display:inline-block;">🍻 Netočno — popij gutljaj!</p>'
+      : '';
     return `
       <div style="padding-top:12px; text-align:center;">
         <div class="big-emoji pop-in">${myPoints>0 ? '🎉' : (myPoints<0 ? '😬' : '😅')}</div>
         <h1 class="title-hero pop-in">${resultMsg}</h1>
         <p class="sub">Tvoj odgovor: ${myAnswerText}<br>Točan odgovor: ${answerText}</p>
+        ${partyLine}
         <div class="card" style="text-align:left;">
           <div style="font-weight:600; font-size:14px; color:var(--muted); margin-bottom:10px;">Ljestvica</div>
           ${scoreboardHTML(players, scores, ME.id)}
@@ -1173,7 +1218,10 @@ function displayScreenHTML(state, players, scores){
         <div class="eyebrow">Pitanje ${state.qIndex+1} / ${activeQuiz().questions.length}</div>
         <div class="stage-q">${q.text}</div>
         ${opts}
-        <div class="pill flash" style="margin-top:20px;"><span class="dot"></span>${answered} / ${total} odgovorilo</div>
+        <div class="row" style="justify-content:center; gap:10px; margin-top:20px;">
+          <div class="pill flash"><span class="dot"></span>${answered} / ${total} odgovorilo</div>
+          ${timerPillHTML()}
+        </div>
       </div>
     `;
   }
@@ -1183,10 +1231,17 @@ function displayScreenHTML(state, players, scores){
     const answerText = (q.type==='mc') ? q.options[q.correct]
       : (q.type==='num') ? `${q.correct} ${q.unit||''}`
       : q.correct;
+    const drinkers = activeQuiz().partyMode
+      ? Object.keys(players).filter(pid => (G.round[pid] || 0) <= 0).map(pid => players[pid].name)
+      : [];
+    const partyBlock = drinkers.length
+      ? `<div class="pill flash" style="margin-top:16px; color:var(--pink);">🍻 Piju: ${drinkers.join(', ')}</div>`
+      : '';
     return `
       <div class="stage">
         <div class="eyebrow">Točan odgovor</div>
         <div class="stage-answer">${answerText}</div>
+        ${partyBlock}
         <div class="card stage-board">
           <div style="font-weight:600; font-size:14px; color:var(--muted); margin-bottom:12px;">Ljestvica</div>
           ${scoreboardHTML(players, scores, null)}
@@ -1237,7 +1292,8 @@ function init(){
       qIndex: typeof raw.qIndex === 'number' ? raw.qIndex : 0,
       hostId: raw.hostId || null,
       quizId: raw.quizId || null,
-      cluesOpen: typeof raw.cluesOpen === 'number' ? raw.cluesOpen : 1
+      cluesOpen: typeof raw.cluesOpen === 'number' ? raw.cluesOpen : 1,
+      questionStartedAt: raw.questionStartedAt || null
     };
     const qChanged = newState.qIndex !== G.state.qIndex;
     G.state = newState;
@@ -1252,6 +1308,17 @@ function init(){
     cleanupStaleLobbyPlayers();
     render();
   }, 30000);
+
+  setInterval(()=>{
+    const el = document.getElementById('timer-num');
+    if(!el) return;
+    const remaining = getRemainingSeconds();
+    if(remaining === null) return;
+    el.textContent = remaining;
+    const pill = document.getElementById('timer-pill');
+    if(pill) pill.classList.toggle('timer-warn', remaining <= 5);
+    if(remaining <= 0) render(); // forsira pravi render da se ekran promijeni (npr. "vrijeme isteklo")
+  }, 1000);
 }
 
 init();
