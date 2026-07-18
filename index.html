@@ -193,6 +193,16 @@
     text-align:center; font-size: 24px; font-weight:600;
     padding: 24px 22px; display:flex; align-items:center; justify-content:center;
   }
+  /* Kad je zaslon širok (laptop), voditelj/igrač ekran naraste - isti raspored, veći tekst */
+  .wide-mode .title-hero{ font-size: clamp(30px, 4vw, 46px); text-align:center; }
+  .wide-mode .eyebrow{ font-size: 16px; text-align:center; }
+  .wide-mode .sub{ font-size: 18px; text-align:center; }
+  .wide-mode .card{ padding: 28px; }
+  .wide-mode .mc-btn{ font-size: 20px; padding: 20px 22px; text-align:center; }
+  .wide-mode .timer-banner{ font-size: 44px; max-width: 480px; margin-left:auto; margin-right:auto; }
+  .wide-mode .timer-banner.critical{ font-size: 110px; }
+  .wide-mode .footer-bar .inner{ max-width: 480px; }
+  .wide-mode .card input[type=text], .wide-mode .card input[type=number]{ font-size: 20px; padding: 18px; }
   .home-btn{
     position: fixed; top: 14px; left: 14px; z-index: 10;
     width: auto; background: var(--surface); border: 1.5px solid var(--border);
@@ -237,8 +247,22 @@
     padding: 6px 14px; font-size: 13px; font-weight: 700; color: var(--teal);
     font-family:'Baloo 2',sans-serif;
   }
-  .timer-pill{ color: var(--violet); }
-  .timer-pill.timer-warn{ color: #E2585A; animation: pop 0.4s ease infinite alternate; }
+  .timer-banner{
+    display:flex; align-items:center; justify-content:center; gap:8px;
+    width: 100%; box-sizing:border-box;
+    background: var(--surface-2); border: 2px solid var(--violet);
+    border-radius: 18px; padding: 14px; margin: 14px 0;
+    font-family:'Baloo 2',sans-serif; font-weight:800; color: var(--violet);
+    font-size: 32px; transition: all 0.2s ease;
+  }
+  .timer-banner.critical{
+    color: #fff; background: #E2585A; border-color: #E2585A;
+    font-size: 88px; padding: 20px; animation: timer-pulse 0.6s ease infinite alternate;
+  }
+  @keyframes timer-pulse{
+    from{ transform: scale(1); }
+    to{ transform: scale(1.06); }
+  }
   .toast{
     position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
     background: var(--teal); color: #0B1D3A; padding: 10px 18px; border-radius: 999px;
@@ -342,9 +366,9 @@ function timerPillHTML(){
   const cfg = getTimerConfig();
   if(!cfg) return '';
   const remaining = getRemainingSeconds();
-  return `<div class="score-pill timer-pill ${remaining<=5?'timer-warn':''}" id="timer-pill">⏱️ <span id="timer-num">${remaining}</span>s</div>`;
+  const critical = remaining <= 5;
+  return `<div class="timer-banner ${critical?'critical':''}" id="timer-pill">⏱️ <span id="timer-num">${remaining}</span></div>`;
 }
-
 /* ---------- Zvuk (generiran u kodu, bez vanjskih fajlova) ---------- */
 let soundOn = true;
 let audioCtx = null;
@@ -709,7 +733,8 @@ function render(){
     return;
   }
 
-  app.style.maxWidth = '460px';
+  app.style.maxWidth = window.innerWidth >= 700 ? '820px' : '460px';
+  app.classList.toggle('wide-mode', window.innerWidth >= 700);
 
   if(ME.role === 'player' && ME.id !== G.state.hostId && wasInGame && !G.players[ME.id]){
     wasInGame = false;
@@ -926,10 +951,8 @@ function hostScreenHTML(state, players, scores){
     ` : '';
     return `
       <div style="padding-top:12px;">
-        <div class="row" style="margin-bottom:4px;">
-          <div class="eyebrow" style="margin-bottom:0;">Pitanje ${state.qIndex+1} / ${activeQuiz().questions.length} <span class="badge-host">HOST</span></div>
-          ${timerPillHTML()}
-        </div>
+        <div class="eyebrow">Pitanje ${state.qIndex+1} / ${activeQuiz().questions.length} <span class="badge-host">HOST</span></div>
+        ${timerPillHTML()}
         <h1 class="title-hero" style="font-size:26px;">${q.text}</h1>
         ${cluesBlock}
         <div class="card">
@@ -1085,7 +1108,7 @@ function playerScreenHTML(state, players, scores){
   if(state.phase === 'question'){
     const q = activeQuiz().questions[state.qIndex];
     const myScore = scores[ME.id] || 0;
-    const scoreLine = `<div class="row" style="margin-bottom:4px;"><div class="eyebrow" style="margin-bottom:0;">Pitanje ${state.qIndex+1} / ${activeQuiz().questions.length}</div><div class="row" style="gap:8px;">${timerPillHTML()}<div class="score-pill">🏆 ${myScore}</div></div></div>`;
+    const scoreLine = `<div class="row" style="margin-bottom:4px;"><div class="eyebrow" style="margin-bottom:0;">Pitanje ${state.qIndex+1} / ${activeQuiz().questions.length}</div><div class="score-pill">🏆 ${myScore}</div></div>${timerPillHTML()}`;
     const already = G.answers[ME.id];
     const timeUp = getTimerConfig() && getRemainingSeconds() <= 0;
     if(already !== undefined){
@@ -1282,12 +1305,10 @@ function displayScreenHTML(state, players, scores){
     return `
       <div class="stage">
         <div class="eyebrow">Pitanje ${state.qIndex+1} / ${activeQuiz().questions.length}</div>
+        ${timerPillHTML()}
         <div class="stage-q">${q.text}</div>
         ${opts}
-        <div class="row" style="justify-content:center; gap:10px; margin-top:20px;">
-          <div class="pill flash"><span class="dot"></span>${answered} / ${total} odgovorilo</div>
-          ${timerPillHTML()}
-        </div>
+        <div class="pill flash" style="margin-top:20px;"><span class="dot"></span>${answered} / ${total} odgovorilo</div>
       </div>
     `;
   }
@@ -1375,15 +1396,24 @@ function init(){
     render();
   }, 30000);
 
-  setInterval(()=>{
+  let autoClosedFor = null;
+  setInterval(async ()=>{
     const el = document.getElementById('timer-num');
-    if(!el) return;
     const remaining = getRemainingSeconds();
     if(remaining === null) return;
-    el.textContent = remaining;
-    const pill = document.getElementById('timer-pill');
-    if(pill) pill.classList.toggle('timer-warn', remaining <= 5);
-    if(remaining <= 0) render(); // forsira pravi render da se ekran promijeni (npr. "vrijeme isteklo")
+    if(el){
+      el.textContent = remaining;
+      const pill = document.getElementById('timer-pill');
+      if(pill) pill.classList.toggle('critical', remaining <= 5);
+    }
+    if(remaining <= 0){
+      render(); // forsira pravi render da se ekran promijeni (npr. "vrijeme isteklo")
+      if(ME && G.state.hostId === ME.id && G.state.phase === 'question' && autoClosedFor !== G.state.qIndex){
+        autoClosedFor = G.state.qIndex;
+        await scoreQuestion(G.state.qIndex);
+        db.ref('state').update({ phase:'reveal' });
+      }
+    }
   }, 1000);
 }
 
