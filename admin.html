@@ -337,42 +337,12 @@ function render(){
         </div>`;
     }).join('');
 
-    const timers = quiz.timers || {};
-    const T = (type, defSec) => timers[type] || { on:false, sec: defSec };
-    const timerRow = (type, label, defSec) => {
-      const t = T(type, defSec);
-      return `
-        <div class="row" style="align-items:center; margin-bottom:10px;">
-          <label style="display:flex; align-items:center; gap:8px; cursor:pointer; margin:0; flex:1;">
-            <input type="checkbox" class="timer-on" data-type="${type}" ${t.on?'checked':''} style="width:auto; margin:0;"> ${label}
-          </label>
-          <input type="number" class="timer-sec" data-type="${type}" value="${t.sec}" min="5" max="300" style="width:90px; margin:0;">
-          <span class="sub" style="margin:0;">sek</span>
-        </div>`;
-    };
-
     questionsSection = `
       <div class="card">
         <div class="row">
           <div><label>Naziv kviza</label><input type="text" id="quiz-title" value="${quiz.title || ''}"></div>
         </div>
         <button class="ghost small" id="btn-rename-quiz">Spremi naziv</button>
-      </div>
-
-      <div class="card">
-        <h3>Postavke kviza</h3>
-        <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
-          <input type="checkbox" id="party-mode" ${quiz.partyMode?'checked':''} style="width:auto; margin:0;">
-          🍻 Party mod (18+, netočni odgovori spominju piće)
-        </label>
-        <p class="sub" style="margin-top:4px;">Ako je isključeno, koristi se obiteljska verzija bez spominjanja alkohola.</p>
-        <hr>
-        <div style="font-weight:600; font-size:14px; color:var(--muted); margin-bottom:10px;">Timer po tipu pitanja (opcionalno)</div>
-        ${timerRow('mc', 'ABCD', 20)}
-        ${timerRow('open', 'Klasično', 30)}
-        ${timerRow('num', 'Procjena broja', 25)}
-        ${timerRow('clues', 'Natuknice', 45)}
-        <button class="primary small" id="btn-save-settings" style="margin-top:6px;">Spremi postavke</button>
       </div>
 
       <div class="card">
@@ -519,18 +489,6 @@ function bind(){
     if(!title) return;
     await db.ref('quizzes/' + selectedQuizId + '/title').set(title);
     toast('Naziv spremljen');
-  });
-  document.getElementById('btn-save-settings')?.addEventListener('click', async ()=>{
-    const partyMode = document.getElementById('party-mode').checked;
-    const timers = {};
-    document.querySelectorAll('.timer-on').forEach(cb=>{
-      const type = cb.dataset.type;
-      const secInput = document.querySelector(`.timer-sec[data-type="${type}"]`);
-      const sec = Math.max(5, parseInt(secInput.value, 10) || 20);
-      timers[type] = { on: cb.checked, sec };
-    });
-    await db.ref('quizzes/' + selectedQuizId).update({ partyMode, timers });
-    toast('Postavke spremljene');
   });
   document.getElementById('type-mc')?.addEventListener('click', ()=>{ newQType='mc'; render(); });
   document.getElementById('type-num')?.addEventListener('click', ()=>{ newQType='num'; render(); });

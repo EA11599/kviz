@@ -239,6 +239,13 @@
   }
   .timer-pill{ color: var(--violet); }
   .timer-pill.timer-warn{ color: #E2585A; animation: pop 0.4s ease infinite alternate; }
+  .toast{
+    position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+    background: var(--teal); color: #0B1D3A; padding: 10px 18px; border-radius: 999px;
+    font-weight: 700; font-size: 14px; opacity: 0; pointer-events: none;
+    transition: opacity 0.2s ease; z-index: 50; font-family:'Baloo 2',sans-serif;
+  }
+  .toast.show{ opacity: 1; }
   .modal-backdrop{
     position: fixed; inset: 0; background: rgba(4,10,24,0.72);
     z-index: 40; display:flex; align-items:flex-end; justify-content:center;
@@ -261,6 +268,7 @@
   <div class="center-note">Učitavanje...</div>
 </div>
 <div id="modal-root"></div>
+<div class="toast" id="toast"></div>
 
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-database-compat.js"></script>
@@ -431,6 +439,13 @@ function maybeFireEffects(state, isHost, isDisplay){
 
 function uid(){ return Math.random().toString(36).slice(2,10); }
 function initials(name){ return (name||'?').trim().slice(0,2).toUpperCase(); }
+function toast(msg){
+  const t = document.getElementById('toast');
+  if(!t) return;
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(()=> t.classList.remove('show'), 1800);
+}
 
 /* ME se namjerno NE sprema (npr. u localStorage) - refresh stranice
    mora tražiti ponovnu prijavu, kako smo se dogovorili. */
@@ -834,6 +849,40 @@ function hostScreenHTML(state, players, scores){
 
     const canStart = total >= 1 && !!state.quizId;
 
+    let settingsCard = '';
+    if(state.quizId){
+      const quiz = activeQuiz();
+      const timers = quiz.timers || {};
+      const T = (type, defSec) => timers[type] || { on:false, sec: defSec };
+      const timerRow = (type, label, defSec) => {
+        const t = T(type, defSec);
+        return `
+          <div class="row" style="align-items:center; margin-bottom:10px;">
+            <label style="display:flex; align-items:center; gap:8px; cursor:pointer; margin:0; flex:1;">
+              <input type="checkbox" class="timer-on" data-type="${type}" ${t.on?'checked':''} style="width:auto; margin:0;"> ${label}
+            </label>
+            <input type="number" class="timer-sec" data-type="${type}" value="${t.sec}" min="5" max="300" style="width:80px; margin:0;">
+            <span class="sub" style="margin:0;">sek</span>
+          </div>`;
+      };
+      settingsCard = `
+        <div class="card">
+          <div style="font-weight:600; font-size:14px; color:var(--muted); margin-bottom:10px;">Postavke kviza</div>
+          <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+            <input type="checkbox" id="party-mode" ${quiz.partyMode?'checked':''} style="width:auto; margin:0;">
+            🍻 Party mod (18+, netočni odgovori spominju piće)
+          </label>
+          <p class="sub" style="margin:6px 0 14px;">Ako je isključeno, koristi se obiteljska verzija bez spominjanja alkohola.</p>
+          <div style="font-weight:600; font-size:13px; color:var(--muted); margin-bottom:10px;">Timer po tipu pitanja (opcionalno)</div>
+          ${timerRow('mc', 'ABCD', 20)}
+          ${timerRow('open', 'Klasično', 30)}
+          ${timerRow('num', 'Procjena broja', 25)}
+          ${timerRow('clues', 'Natuknice', 45)}
+          <button class="ghost small" id="btn-save-settings">Spremi postavke</button>
+        </div>
+      `;
+    }
+
     return `
       <div style="padding-top:12px;">
         <div class="eyebrow">Ti si voditelj <span class="badge-host">HOST</span></div>
@@ -848,6 +897,7 @@ function hostScreenHTML(state, players, scores){
           ${existingList}
           ${addNewBtn}
         </div>
+        ${settingsCard}
         <div class="card">
           <div class="row" style="margin-bottom:10px;">
             <div style="font-weight:600; font-size:14px; color:var(--muted);">Igrači</div>
@@ -968,6 +1018,18 @@ function bindHost(state){
     btn.addEventListener('click', ()=>{
       db.ref('state/quizId').set(btn.dataset.id);
     });
+  });
+  document.getElementById('btn-save-settings')?.addEventListener('click', async ()=>{
+    const partyMode = document.getElementById('party-mode').checked;
+    const timers = {};
+    document.querySelectorAll('.timer-on').forEach(cb=>{
+      const type = cb.dataset.type;
+      const secInput = document.querySelector(`.timer-sec[data-type="${type}"]`);
+      const sec = Math.max(5, parseInt(secInput.value, 10) || 20);
+      timers[type] = { on: cb.checked, sec };
+    });
+    await db.ref('quizzes/' + state.quizId).update({ partyMode, timers });
+    toast('Postavke spremljene');
   });
   document.getElementById('btn-start')?.addEventListener('click', ()=>{
     db.ref('state').update({ phase:'question', qIndex:0, cluesOpen:1, questionStartedAt: firebase.database.ServerValue.TIMESTAMP });
