@@ -780,7 +780,7 @@ function goHome(){
     db.ref('scores').onDisconnect().cancel();
     db.ref('answers').onDisconnect().cancel();
     db.ref('round').onDisconnect().cancel();
-    db.ref('state').update({ hostId: null, phase: 'lobby', qIndex: 0, cluesOpen: 1, hostQ: null, hostQReturnPhase: null });
+    db.ref('state').update({ hostId: null, phase: 'lobby', qIndex: 0, cluesOpen: 1, hostQ: null, hostQReturn: null });
     db.ref('players').remove();
     db.ref('scores').remove();
     db.ref('answers').remove();
@@ -856,7 +856,7 @@ function render(){
     document.getElementById('btn-become-host')?.addEventListener('click', async ()=>{
       await db.ref('state').transaction(current => {
         if(!current || !current.hostId){
-          return { ...(current||{}), hostId: ME.id, phase: 'lobby', qIndex: 0, cluesOpen: 1, hostQ: null, hostQReturnPhase: null };
+          return { ...(current||{}), hostId: ME.id, phase: 'lobby', qIndex: 0, cluesOpen: 1, hostQ: null, hostQReturn: null };
         }
         return current; // netko je u međuvremenu već postao voditelj, ne diraj
       });
@@ -867,7 +867,7 @@ function render(){
   }
 
   if(isHost){
-    db.ref('state').onDisconnect().update({ hostId: null, phase: 'lobby', qIndex: 0, cluesOpen: 1, hostQ: null, hostQReturnPhase: null });
+    db.ref('state').onDisconnect().update({ hostId: null, phase: 'lobby', qIndex: 0, cluesOpen: 1, hostQ: null, hostQReturn: null });
     db.ref('players').onDisconnect().remove();
     db.ref('scores').onDisconnect().remove();
     db.ref('answers').onDisconnect().remove();
@@ -1011,21 +1011,43 @@ function bindHostQuestion(isHostNow){
   });
   document.getElementById('btn-hostq-continue')?.addEventListener('click', ()=>{
     hostQRevealed = false;
-    const returnPhase = G.state.hostQReturnPhase || 'lobby';
-    db.ref('state').update({ phase: returnPhase, hostQ: null, hostQReturnPhase: null });
+    const ret = G.state.hostQReturn || { phase: 'lobby' };
+    const update = { phase: ret.phase, hostQ: null, hostQReturn: null };
+    if(ret.phase === 'question'){
+      update.qIndex = ret.qIndex || 0;
+      update.cluesOpen = 1;
+      update.questionStartedAt = firebase.database.ServerValue.TIMESTAMP;
+    }
+    db.ref('state').update(update);
   });
 }
 
-async function triggerHostQuestion(returnPhase){
+// returnState npr. { phase:'lobby' } ili { phase:'reveal', qIndex:3 } ili { phase:'question', qIndex:4 } ili { phase:'end' }
+async function triggerHostQuestion(returnState){
   const ids = Object.keys(G.hostTrivia);
-  if(ids.length === 0){ toast('Baza pitanja za voditelja je prazna - dodaj u adminu'); return; }
+  if(ids.length === 0) return false;
   const pick = G.hostTrivia[ids[Math.floor(Math.random()*ids.length)]];
   hostQRevealed = false;
   await db.ref('state').update({
     phase: 'hostq',
     hostQ: { text: pick.text, items: pick.items || [] },
-    hostQReturnPhase: returnPhase
+    hostQReturn: returnState
   });
+  return true;
+}
+
+// Nakon svakog pitanja/pauze - 10% šanse da se ubaci nasumično pitanje za voditelja prije nego se ide dalje
+async function advanceQuiz(targetQIndex, isEnd){
+  const canInject = activeQuiz().partyMode && Object.keys(G.hostTrivia).length > 0;
+  if(canInject && Math.random() < 0.1){
+    const injected = await triggerHostQuestion(isEnd ? { phase:'end' } : { phase:'question', qIndex: targetQIndex });
+    if(injected) return;
+  }
+  if(isEnd){
+    db.ref('state').update({ phase:'end' });
+  } else {
+    db.ref('state').update({ phase:'question', qIndex: targetQIndex, cluesOpen:1, questionStartedAt: firebase.database.ServerValue.TIMESTAMP });
+  }
 }
 
 function noHostScreenHTML(players){
@@ -1269,11 +1291,12 @@ function bindHost(state){
   document.getElementById('party-mode')?.addEventListener('change', saveQuizSettings);
   document.querySelectorAll('.timer-on').forEach(cb => cb.addEventListener('change', saveQuizSettings));
   document.querySelectorAll('.timer-sec').forEach(inp => inp.addEventListener('change', saveQuizSettings));
-  document.getElementById('btn-host-question')?.addEventListener('click', ()=>{
-    triggerHostQuestion(state.phase);
+  document.getElementById('btn-host-question')?.addEventListener('click', async ()=>{
+    if(Object.keys(G.hostTrivia).length === 0){ toast('Baza pitanja za voditelja je prazna - dodaj u adminu'); return; }
+    await triggerHostQuestion({ phase: state.phase, qIndex: state.qIndex });
   });
   document.getElementById('btn-start')?.addEventListener('click', ()=>{
-    db.ref('state').update({ phase:'question', qIndex:0, cluesOpen:1, questionStartedAt: firebase.database.ServerValue.TIMESTAMP });
+    advanceQuiz(0, false);
   });
   document.getElementById('btn-open-clue')?.addEventListener('click', ()=>{
     db.ref('state/cluesOpen').set(Math.min(state.cluesOpen + 1, 5));
@@ -1290,19 +1313,11 @@ function bindHost(state){
   });
   document.getElementById('btn-next')?.addEventListener('click', ()=>{
     const isLast = state.qIndex === activeQuiz().questions.length - 1;
-    if(isLast){
-      db.ref('state').update({ phase:'end' });
-    } else {
-      db.ref('state').update({ phase:'question', qIndex: state.qIndex+1, cluesOpen:1, questionStartedAt: firebase.database.ServerValue.TIMESTAMP });
-    }
+    advanceQuiz(state.qIndex+1, isLast);
   });
   document.getElementById('btn-break-continue')?.addEventListener('click', ()=>{
     const isLast = state.qIndex === activeQuiz().questions.length - 1;
-    if(isLast){
-      db.ref('state').update({ phase:'end' });
-    } else {
-      db.ref('state').update({ phase:'question', qIndex: state.qIndex+1, cluesOpen:1, questionStartedAt: firebase.database.ServerValue.TIMESTAMP });
-    }
+    advanceQuiz(state.qIndex+1, isLast);
   });
   document.getElementById('btn-reset')?.addEventListener('click', resetGame);
 }
@@ -1618,7 +1633,7 @@ function init(){
       cluesOpen: typeof raw.cluesOpen === 'number' ? raw.cluesOpen : 1,
       questionStartedAt: raw.questionStartedAt || null,
       hostQ: raw.hostQ || null,
-      hostQReturnPhase: raw.hostQReturnPhase || null
+      hostQReturn: raw.hostQReturn || null
     };
     const qChanged = newState.qIndex !== G.state.qIndex;
     G.state = newState;

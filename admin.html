@@ -126,6 +126,8 @@ const SEED_HOST_TRIVIA = [
 let QUIZZES = {};
 let POOL = {};
 let HOST_TRIVIA = {};
+let parsedTrivia = [];
+let parsedTriviaErrors = [];
 let selectedQuizId = null;
 let newQType = 'mc';
 let parsedQuestions = [];
@@ -215,6 +217,50 @@ function handleImportFile(file){
     }
   };
   reader.readAsArrayBuffer(file);
+}
+
+function parseTriviaRows(rows){
+  const items = [];
+  const errors = [];
+  rows.forEach((row, i)=>{
+    const rowNum = i + 2;
+    const text = String(row.pitanje || '').trim();
+    if(!text) return;
+    const answers = String(row.odgovori || '').split(';').map(s=>s.trim()).filter(Boolean);
+    if(answers.length < 2){ errors.push(`Redak ${rowNum}: treba barem 2 odgovora odvojena s ';'.`); return; }
+    items.push({ text, items: answers });
+  });
+  return { items, errors };
+}
+
+function handleTriviaImportFile(file){
+  const reader = new FileReader();
+  reader.onload = (e)=>{
+    try{
+      const data = new Uint8Array(e.target.result);
+      const wb = XLSX.read(data, { type:'array' });
+      const sheetName = wb.SheetNames.includes('Pitanja za voditelja') ? 'Pitanja za voditelja' : wb.SheetNames[wb.SheetNames.length - 1];
+      const ws = wb.Sheets[sheetName];
+      const rows = XLSX.utils.sheet_to_json(ws, { defval:'' });
+      const result = parseTriviaRows(rows);
+      parsedTrivia = result.items;
+      parsedTriviaErrors = result.errors;
+      render();
+    }catch(err){
+      toast('Ne mogu pročitati datoteku - provjeri format');
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+async function doImportTrivia(){
+  if(parsedTrivia.length === 0) return;
+  const updates = {};
+  parsedTrivia.forEach(t=>{ updates[uid()] = t; });
+  await db.ref('hostTrivia').update(updates);
+  toast(`Uvezeno ${parsedTrivia.length} pitanja za voditelja`);
+  parsedTrivia = [];
+  parsedTriviaErrors = [];
 }
 
 async function doImport(){
@@ -430,6 +476,16 @@ function render(){
       </div>`;
   }).join('');
 
+  const triviaPreview = parsedTrivia.length || parsedTriviaErrors.length
+    ? `
+      <div class="q-item" style="margin-top:10px;">
+        <div class="qtext">Pronađeno ${parsedTrivia.length} ispravnih pitanja${parsedTriviaErrors.length ? `, ${parsedTriviaErrors.length} redaka s greškom` : ''}.</div>
+        ${parsedTriviaErrors.length ? `<div class="qmeta" style="color:#F0B4B4;">${parsedTriviaErrors.join('<br>')}</div>` : ''}
+        ${parsedTrivia.length ? `<button class="primary small" id="btn-do-import-trivia" style="margin-top:10px;">Uvezi ${parsedTrivia.length} pitanja</button>` : ''}
+      </div>
+    `
+    : '';
+
   const triviaCard = `
     <div class="card">
       <h3>🎤 Pitanja za voditelja (nabrajanje) <span class="pill">${triviaIds.length}</span></h3>
@@ -437,6 +493,12 @@ function render(){
       ${triviaList || '<p class="sub">Još nema pitanja u ovoj bazi.</p>'}
       ${ triviaIds.length === 0 ? `<button class="ghost" id="btn-seed-trivia" style="margin-bottom:12px;">Napuni s 5 početnih pitanja</button>` : '' }
       <hr>
+      <div style="font-weight:600; font-size:13px; color:var(--muted); margin-bottom:8px;">Uvezi iz Excela</div>
+      <p class="sub">Predložak: stupac <b>pitanje</b> i stupac <b>odgovori</b> (stavke odvoji s ; ).</p>
+      <input type="file" id="trivia-import-file" accept=".xlsx,.xls,.csv">
+      ${triviaPreview}
+      <hr>
+      <div style="font-weight:600; font-size:13px; color:var(--muted); margin-bottom:8px;">Ili dodaj ručno</div>
       <label>Pitanje (npr. "Nabroji 15 američkih saveznih država")</label>
       <input type="text" id="trivia-text" placeholder="Nabroji...">
       <label>Točni odgovori, jedan po retku</label>
@@ -482,6 +544,11 @@ function bind(){
     const file = e.target.files[0];
     if(file) handleImportFile(file);
   });
+  document.getElementById('trivia-import-file')?.addEventListener('change', (e)=>{
+    const file = e.target.files[0];
+    if(file) handleTriviaImportFile(file);
+  });
+  document.getElementById('btn-do-import-trivia')?.addEventListener('click', doImportTrivia);
   document.getElementById('import-target')?.addEventListener('change', (e)=>{
     importTarget = e.target.value;
     render();
