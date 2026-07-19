@@ -54,6 +54,12 @@
     margin-bottom: 6px;
   }
   .title-hero{ font-size: 34px; line-height: 1.05; margin-bottom: 8px; }
+  .mega-title{
+    font-size: clamp(56px, 18vw, 88px); line-height: 0.95; margin: 4px 0 16px;
+    text-align: center; letter-spacing: 0.02em;
+    background: linear-gradient(135deg, var(--pink), var(--amber));
+    -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+  }
   .sub{ color: var(--muted); font-size: 15px; line-height: 1.5; margin-bottom: 24px; }
   .card{
     background: var(--surface);
@@ -141,6 +147,11 @@
   }
   .rank.gold{ color: var(--amber); }
   .points{ font-family:'Baloo 2',sans-serif; font-weight:800; font-size:17px; color: var(--teal); }
+  .remove-player-btn{
+    width: 26px; height: 26px; border-radius: 50%; padding: 0;
+    background: rgba(226,88,90,0.15); color: #E2585A; border: 1px solid rgba(226,88,90,0.4);
+    font-size: 14px; font-weight: 700; line-height: 1; flex-shrink: 0;
+  }
   .qcount{ font-size: 13px; color: var(--muted); margin-bottom: 6px; }
   .footer-bar{
     position: fixed; bottom: 0; left: 0; right: 0;
@@ -535,15 +546,21 @@ function gamePlayers(){
 
 let wasInGame = false;
 
+let presenceRegisteredFor = null;
+
 function ensurePlayerInList(){
   if(!ME || ME.role !== 'player' || ME.id === G.state.hostId) return;
-  if(G.players[ME.id]){
+  if(!G.players[ME.id]){
+    db.ref('players/' + ME.id).set({ name: ME.name, joined: firebase.database.ServerValue.TIMESTAMP, connected: true });
+  } else {
     wasInGame = true;
-    return;
   }
-  const ref = db.ref('players/' + ME.id);
-  ref.set({ name: ME.name, joined: firebase.database.ServerValue.TIMESTAMP });
-  ref.onDisconnect().remove();
+  if(presenceRegisteredFor !== ME.id){
+    presenceRegisteredFor = ME.id;
+    const connRef = db.ref('players/' + ME.id + '/connected');
+    connRef.onDisconnect().set(false);
+    connRef.set(true);
+  }
 }
 
 // Prikazuje samo igrače koji nisu predugo (5 min) čekali u lobiju bez da je kviz pokrenut.
@@ -669,7 +686,7 @@ function answeredStatusHTML(players){
   }).join('');
 }
 
-function scoreboardHTML(players, scores, meId){
+function scoreboardHTML(players, scores, meId, canRemove){
   const rows = Object.keys(players).map(pid=>({ pid, name: players[pid].name, score: scores[pid]||0 }));
   rows.sort((a,b)=>b.score-a.score);
   return rows.map((r,i)=>`
@@ -679,7 +696,10 @@ function scoreboardHTML(players, scores, meId){
         <div class="avatar" style="width:28px;height:28px;font-size:12px;">${initials(r.name)}</div>
         <div>${r.name}${r.pid===meId?' <span style="color:var(--muted);font-size:12px;">(ti)</span>':''}</div>
       </div>
-      <div class="points">${r.score}</div>
+      <div style="display:flex; align-items:center; gap:10px;">
+        <div class="points">${r.score}</div>
+        ${canRemove ? `<button class="remove-player-btn" data-remove-pid="${r.pid}" title="Makni igrača">✕</button>` : ''}
+      </div>
     </div>
   `).join('');
 }
@@ -722,7 +742,7 @@ function breakScreenHTML(q, players, scores, opts){
   const board = `
     <div class="card" style="text-align:left; margin-top:16px;">
       <div style="font-weight:600; font-size:14px; color:var(--muted); margin-bottom:10px;">Ljestvica</div>
-      ${scoreboardHTML(players, scores, opts.meId || null)}
+      ${scoreboardHTML(players, scores, opts.meId || null, opts.isHost)}
     </div>`;
   const toastBlock = activeQuiz().partyMode ? `
     <div class="type-badge badge-special" style="display:block; text-align:center; font-size:16px; padding:14px; margin:10px 0;">
@@ -924,9 +944,9 @@ let joinStep = 'select'; // 'select' | 'name-entry' - lokalno stanje, ne smije s
 function joinScreenHTML(){
   return `
     <div style="padding-top:12px;">
-      <div class="eyebrow">Predigra kviz</div>
-      <h1 class="title-hero">Zagrijmo se<br>prije izlaska 🍹</h1>
-      <p class="sub">Voditelj bira temu i pokreće pitanja, ostali odgovaraju na svom mobitelu.</p>
+      <div class="eyebrow" style="text-align:center;">Dobrodošli na</div>
+      <h1 class="mega-title">KVIZ 🍹</h1>
+      <p class="sub" style="text-align:center;">Voditelj bira temu i pokreće pitanja, ostali odgovaraju na svom mobitelu.</p>
       <button class="role-btn" id="btn-role-player">
         <div class="ricon">📱</div>
         <div class="rtext"><strong>Igram na mobitelu</strong><span>Odgovaraš na pitanja i vidiš svoje bodove</span></div>
@@ -966,9 +986,20 @@ function bindJoin(){
     const doJoin = ()=>{
       const name = input.value.trim();
       if(!name) { input.focus(); return; }
+      const existingId = Object.keys(G.players).find(pid => (G.players[pid].name||'').trim().toLowerCase() === name.toLowerCase());
+      let useId = uid();
+      if(existingId){
+        if(G.players[existingId].connected){
+          alert(`Ime "${name}" je trenutno zauzeto - netko ga upravo koristi na drugom uređaju. Odaberi drugo ime.`);
+          input.focus();
+          return;
+        }
+        const resume = confirm(`Već postoji "${name}" u igri (trenutno offline). Želiš li nastaviti odakle si stao/la (zadržati svoje bodove)?`);
+        if(resume) useId = existingId;
+      }
       joinStep = 'select';
       joinNameDraft = '';
-      ME = { id: uid(), name, role: 'player' };
+      ME = { id: useId, name, role: 'player' };
       render();
     };
     btn?.addEventListener('click', doJoin);
@@ -1279,7 +1310,7 @@ function hostScreenHTML(state, players, scores){
         ${gradingBlock}
         <div class="card">
           <div style="font-weight:600; font-size:14px; color:var(--muted); margin-bottom:10px;">Trenutna ljestvica</div>
-          ${scoreboardHTML(players, scores, ME.id)}
+          ${scoreboardHTML(players, scores, ME.id, true)}
         </div>
       </div>
       <div class="footer-bar"><div class="inner">
@@ -1294,7 +1325,7 @@ function hostScreenHTML(state, players, scores){
         <div class="eyebrow">Kraj kviza <span class="badge-host">HOST</span></div>
         <div class="big-emoji pop-in">🏆</div>
         <h1 class="title-hero" style="text-align:center;">Konačna ljestvica</h1>
-        <div class="card">${scoreboardHTML(players, scores, ME.id)}</div>
+        <div class="card">${scoreboardHTML(players, scores, ME.id, true)}</div>
         <p class="sub" style="text-align:center;">Sad se javno pije za pobjednika. Živjeli! 🥂</p>
       </div>
       <div class="footer-bar"><div class="inner">
@@ -1340,6 +1371,16 @@ function bindHost(state){
     btn.addEventListener('click', async ()=>{
       await toggleGrade(state.qIndex, btn.dataset.pid);
       render();
+    });
+  });
+  document.querySelectorAll('.remove-player-btn').forEach(btn=>{
+    btn.addEventListener('click', async (e)=>{
+      e.stopPropagation();
+      const pid = btn.dataset.removePid;
+      const name = G.players[pid]?.name || 'ovog igrača';
+      if(!confirm(`Maknuti "${name}" iz igre? Ne može se poništiti.`)) return;
+      await db.ref('players/' + pid).remove();
+      await db.ref('scores/' + pid).remove();
     });
   });
   document.getElementById('btn-next')?.addEventListener('click', ()=>{
