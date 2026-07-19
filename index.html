@@ -609,7 +609,7 @@ async function scoreQuestion(qIndex){
   } else if(q.type === 'open'){
     Object.keys(players).forEach(pid=>{
       const a = answers[pid];
-      if(!a){ round[pid] = 0; return; }
+      if(!a || a.optOut){ round[pid] = 0; return; }
       const isCorrect = normalizeText(a.value) === normalizeText(q.correct);
       round[pid] = isCorrect ? (q.special ? 3 : 1) : (q.special ? -1 : 0);
     });
@@ -1127,14 +1127,8 @@ function hostScreenHTML(state, players, scores){
           ${timerRow('num', 'Procjena broja', 25)}
           ${timerRow('clues', 'Natuknice', 45)}
           <p class="sub" style="text-align:center; margin-top:8px;">Postavke se spremaju automatski.</p>
+          ${quiz.partyMode ? `<p class="sub" style="text-align:center; margin-top:10px;">🎤 Party mod: pitanja za voditelja se ubacuju sama, s vremena na vrijeme.</p>` : ''}
         </div>
-        ${quiz.partyMode ? `
-        <div class="card">
-          <div style="font-weight:600; font-size:14px; color:var(--muted); margin-bottom:10px;">🎤 Pitanje za voditelja</div>
-          <p class="sub" style="margin-bottom:10px;">Ubaci nasumično "nabroji..." pitanje - ti odgovaraš naglas, ne na mobitelu.</p>
-          <button class="ghost" id="btn-host-question">🎲 Ubaci pitanje za mene</button>
-        </div>
-        ` : ''}
       `;
     }
 
@@ -1212,6 +1206,20 @@ function hostScreenHTML(state, players, scores){
       const rows = Object.keys(G.answers).map(pid=>{
         const name = players[pid]?.name || '?';
         const ans = G.answers[pid];
+        if(ans.optOut){
+          return `
+            <div class="player-chip" style="align-items:center;">
+              <div class="name-row" style="flex:1; min-width:0;">
+                <div class="avatar">${initials(name)}</div>
+                <div style="min-width:0;">
+                  <div style="font-weight:600;">${name}</div>
+                  <div style="color:var(--muted); font-size:13px;">🙅 nije htio/htjela odgovoriti</div>
+                </div>
+              </div>
+              <div class="pill" style="width:auto; flex-shrink:0;">0</div>
+            </div>
+          `;
+        }
         const pts = G.round[pid] || 0;
         const isCorrect = pts > 0;
         return `
@@ -1247,7 +1255,6 @@ function hostScreenHTML(state, players, scores){
         </div>
       </div>
       <div class="footer-bar"><div class="inner">
-        ${activeQuiz().partyMode ? `<button class="ghost small" id="btn-host-question" style="margin-bottom:8px;">🎲 Ubaci pitanje za voditelja</button>` : ''}
         <button class="primary" id="btn-next">${isLast ? 'Prikaži konačne rezultate 🏆' : 'Sljedeće pitanje ➡️'}</button>
       </div></div>
     `;
@@ -1291,10 +1298,6 @@ function bindHost(state){
   document.getElementById('party-mode')?.addEventListener('change', saveQuizSettings);
   document.querySelectorAll('.timer-on').forEach(cb => cb.addEventListener('change', saveQuizSettings));
   document.querySelectorAll('.timer-sec').forEach(inp => inp.addEventListener('change', saveQuizSettings));
-  document.getElementById('btn-host-question')?.addEventListener('click', async ()=>{
-    if(Object.keys(G.hostTrivia).length === 0){ toast('Baza pitanja za voditelja je prazna - dodaj u adminu'); return; }
-    await triggerHostQuestion({ phase: state.phase, qIndex: state.qIndex });
-  });
   document.getElementById('btn-start')?.addEventListener('click', ()=>{
     advanceQuiz(0, false);
   });
@@ -1408,6 +1411,7 @@ function playerScreenHTML(state, players, scores){
           <div class="card" style="margin-top:14px;">
             <input type="text" id="text-input" placeholder="Upiši odgovor" autocomplete="off">
           </div>
+          ${q.special ? `<button class="ghost" id="btn-opt-out" style="margin-top:10px;">🙅 Ne želim odgovarati (sigurno 0 bodova)</button>` : ''}
         </div>
         <div class="footer-bar"><div class="inner">
           <button class="primary" id="btn-submit-text">Pošalji odgovor</button>
@@ -1440,7 +1444,9 @@ function playerScreenHTML(state, players, scores){
       : (q.type==='num') ? `${q.correct} ${q.unit||''}`
       : q.correct;
     const myAnswer = G.answers[ME.id];
-    const myAnswerText = myAnswer !== undefined
+    const myAnswerText = myAnswer && myAnswer.optOut
+      ? 'izabrao/la si ne odgovarati'
+      : myAnswer !== undefined
       ? (q.type==='mc' ? q.options[myAnswer.value] : `${myAnswer.value}${q.type==='num' ? ' ' + (q.unit||'') : ''}`)
       : 'nisi odgovorio/la';
     const resultMsg = myPoints > 0 ? `+${myPoints} bodova!` : (myPoints < 0 ? `${myPoints} bod` : 'Ovaj put nula bodova');
@@ -1504,6 +1510,9 @@ function bindPlayer(state){
       payload.cluesOpen = state.cluesOpen;
     }
     db.ref('answers/' + state.qIndex + '/' + ME.id).set(payload);
+  });
+  document.getElementById('btn-opt-out')?.addEventListener('click', ()=>{
+    db.ref('answers/' + state.qIndex + '/' + ME.id).set({ optOut: true, value: null, ts: firebase.database.ServerValue.TIMESTAMP });
   });
 }
 
