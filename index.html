@@ -867,6 +867,7 @@ function goHome(){
 
 let lastRenderKey = null;
 let autoClosedFor = null;
+let autoClueAdvancedFor = null; // "qIndex:cluesOpen" - da se auto-otvaranje sljedeće natuknice ne pokrene više puta
 
 function render(){
   const activeEl = document.activeElement;
@@ -1434,7 +1435,7 @@ function bindHost(state){
     advanceQuiz(0, false);
   });
   document.getElementById('btn-open-clue')?.addEventListener('click', ()=>{
-    db.ref('state/cluesOpen').set(Math.min(state.cluesOpen + 1, 5));
+    db.ref('state').update({ cluesOpen: Math.min(state.cluesOpen + 1, 5), questionStartedAt: firebase.database.ServerValue.TIMESTAMP });
   });
   document.getElementById('btn-reveal')?.addEventListener('click', async ()=>{
     await scoreQuestion(state.qIndex);
@@ -1803,10 +1804,19 @@ function init(){
     }
     if(remaining <= 0){
       render(); // forsira pravi render da se ekran promijeni (npr. "vrijeme isteklo")
-      if(ME && G.state.hostId === ME.id && G.state.phase === 'question' && autoClosedFor !== G.state.qIndex){
-        autoClosedFor = G.state.qIndex;
-        await scoreQuestion(G.state.qIndex);
-        db.ref('state').update({ phase:'reveal' });
+      if(ME && G.state.hostId === ME.id && G.state.phase === 'question'){
+        const q = activeQuiz().questions[G.state.qIndex];
+        if(q && q.type === 'clues' && G.state.cluesOpen < 5){
+          const clueKey = G.state.qIndex + ':' + G.state.cluesOpen;
+          if(autoClueAdvancedFor !== clueKey){
+            autoClueAdvancedFor = clueKey;
+            db.ref('state').update({ cluesOpen: G.state.cluesOpen + 1, questionStartedAt: firebase.database.ServerValue.TIMESTAMP });
+          }
+        } else if(autoClosedFor !== G.state.qIndex){
+          autoClosedFor = G.state.qIndex;
+          await scoreQuestion(G.state.qIndex);
+          db.ref('state').update({ phase:'reveal' });
+        }
       }
     }
   }, 1000);
