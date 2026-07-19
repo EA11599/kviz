@@ -115,8 +115,17 @@ const SEED_QUIZ = {
   ]
 };
 
+const SEED_HOST_TRIVIA = [
+  { text: "Nabroji 15 američkih saveznih država", items: ["Kalifornija","Teksas","Florida","New York","Illinois","Pennsylvania","Ohio","Georgia","Michigan","Nevada","Arizona","Colorado","Washington","Oregon","Massachusetts"] },
+  { text: "Nabroji 5 članova britanske kraljevske obitelji", items: ["Kralj Charles III.","Kraljica Camilla","Princ William","Princeza Kate","Princ Harry"] },
+  { text: "Nabroji 5 zemalja pobjednica Svjetskog nogometnog prvenstva", items: ["Brazil","Njemačka","Italija","Argentina","Francuska"] },
+  { text: "Nabroji 10 europskih glavnih gradova", items: ["Pariz","Rim","Madrid","Berlin","London","Beč","Amsterdam","Lisabon","Atena","Prag"] },
+  { text: "Nabroji 5 planeta Sunčevog sustava", items: ["Merkur","Venera","Zemlja","Mars","Jupiter"] }
+];
+
 let QUIZZES = {};
 let POOL = {};
+let HOST_TRIVIA = {};
 let selectedQuizId = null;
 let newQType = 'mc';
 let parsedQuestions = [];
@@ -140,6 +149,10 @@ db.ref('pool').on('value', snap=>{
   POOL = snap.val() || {};
   render();
 });
+db.ref('hostTrivia').on('value', snap=>{
+  HOST_TRIVIA = snap.val() || {};
+  render();
+});
 
 function parseImportRows(rows){
   const questions = [];
@@ -147,8 +160,13 @@ function parseImportRows(rows){
   rows.forEach((row, i)=>{
     const rowNum = i + 2; // +2 jer red 1 je zaglavlje, a i je 0-indeksiran
     const pitanje = String(row.pitanje || '').trim();
+    const tipRaw = String(row.tip || '').trim().toLowerCase();
+    if(tipRaw === 'pauza'){
+      questions.push({ type:'break', text: pitanje || 'Pauza! 🍹' });
+      return;
+    }
     if(!pitanje) return; // prazan red, preskoči tiho
-    const tip = String(row.tip || '').trim().toLowerCase();
+    const tip = tipRaw;
     const kategorija = String(row.kategorija || '').trim();
 
     if(tip === 'abcd' || tip === 'izbor'){
@@ -173,7 +191,7 @@ function parseImportRows(rows){
       if(!correctText){ errors.push(`Redak ${rowNum}: 'tocno' ne smije biti prazno.`); return; }
       questions.push({ type:'clues', text: pitanje, clues, correct: correctText, category: kategorija });
     } else {
-      errors.push(`Redak ${rowNum}: stupac 'tip' mora biti 'abcd', 'klasicno', 'broj' ili 'natuknice' (piše '${row.tip||''}').`);
+      errors.push(`Redak ${rowNum}: stupac 'tip' mora biti 'abcd', 'klasicno', 'broj', 'natuknice' ili 'pauza' (piše '${row.tip||''}').`);
     }
   });
   return { questions, errors };
@@ -328,7 +346,9 @@ function render(){
         ? `procjena broja · točno: ${q.correct} ${q.unit||''}`
         : q.type === 'open'
         ? `klasično${q.special ? ' · posebna kategorija (3/-1)' : ''} · točno: ${q.correct}`
-        : `natuknice (5) · točno: ${q.correct}`;
+        : q.type === 'clues'
+        ? `natuknice (5) · točno: ${q.correct}`
+        : `⏸️ pauza / ljestvica`;
       return `
         <div class="q-item">
           <div class="qtext">${i+1}. ${q.text}</div>
@@ -357,7 +377,14 @@ function render(){
           <button type="button" id="type-open" class="${newQType==='open'?'active':''}">Klasično</button>
           <button type="button" id="type-num" class="${newQType==='num'?'active':''}">Procjena</button>
           <button type="button" id="type-clues" class="${newQType==='clues'?'active':''}">Natuknice</button>
+          <button type="button" id="type-break" class="${newQType==='break'?'active':''}">⏸️ Pauza</button>
         </div>
+        ${ newQType === 'break' ? `
+          <label>Poruka za pauzu (opcionalno)</label>
+          <input type="text" id="break-text" placeholder="npr. Predah - pogledajte ljestvicu! 🍹">
+          <p class="sub">Prikazat će se ljestvica; u party modu i tko je zadnji i mora piti.</p>
+          <button class="primary" id="btn-add-break">Dodaj pauzu</button>
+        ` : `
         <label>${newQType === 'clues' ? 'Naslov / tema (npr. "Tko je ova osoba?")' : 'Tekst pitanja'}</label>
         <textarea id="new-q-text" rows="2" placeholder="npr. Koji je najveći planet u Sunčevom sustavu?"></textarea>
         ${ newQType === 'mc' ? `
@@ -387,9 +414,36 @@ function render(){
           <label>Točan odgovor</label><input type="text" id="correct-text" placeholder="npr. Nikola Tesla">
         `}
         <button class="primary" id="btn-add-q">Dodaj pitanje</button>
+        `}
       </div>
     `;
   }
+
+  const triviaIds = Object.keys(HOST_TRIVIA);
+  const triviaList = triviaIds.map(id=>{
+    const t = HOST_TRIVIA[id];
+    return `
+      <div class="q-item">
+        <div class="qtext">${t.text}</div>
+        <div class="qmeta">${(t.items||[]).length} stavki: ${(t.items||[]).join(', ')}</div>
+        <div style="margin-top:8px;"><button class="small danger" data-del-trivia="${id}">Obriši</button></div>
+      </div>`;
+  }).join('');
+
+  const triviaCard = `
+    <div class="card">
+      <h3>🎤 Pitanja za voditelja (nabrajanje) <span class="pill">${triviaIds.length}</span></h3>
+      <p class="sub">Zajednička baza, dostupna u svim kvizovima za party mod. Voditelj tijekom igre nasumično izvuče jedno i odgovara naglas.</p>
+      ${triviaList || '<p class="sub">Još nema pitanja u ovoj bazi.</p>'}
+      ${ triviaIds.length === 0 ? `<button class="ghost" id="btn-seed-trivia" style="margin-bottom:12px;">Napuni s 5 početnih pitanja</button>` : '' }
+      <hr>
+      <label>Pitanje (npr. "Nabroji 15 američkih saveznih država")</label>
+      <input type="text" id="trivia-text" placeholder="Nabroji...">
+      <label>Točni odgovori, jedan po retku</label>
+      <textarea id="trivia-items" rows="5" placeholder="Kalifornija&#10;Teksas&#10;Florida..."></textarea>
+      <button class="primary" id="btn-add-trivia">Dodaj u bazu</button>
+    </div>
+  `;
 
   const maintenanceCard = `
     <div class="card">
@@ -416,6 +470,7 @@ function render(){
       ${ quizIds.length === 0 ? `<button class="ghost" id="btn-seed" style="margin-top:8px;">Napuni bazu s početnim kvizom "Opća kultura" (22 pitanja)</button>` : '' }
     </div>
     ${questionsSection}
+    ${triviaCard}
     ${maintenanceCard}
   `;
 
@@ -484,6 +539,26 @@ function bind(){
     selectedQuizId = id;
     toast('Početni kviz dodan');
   });
+  document.getElementById('btn-seed-trivia')?.addEventListener('click', async ()=>{
+    const updates = {};
+    SEED_HOST_TRIVIA.forEach(t=>{ updates[uid()] = t; });
+    await db.ref('hostTrivia').update(updates);
+    toast('Početna pitanja dodana');
+  });
+  document.getElementById('btn-add-trivia')?.addEventListener('click', async ()=>{
+    const text = document.getElementById('trivia-text').value.trim();
+    const items = document.getElementById('trivia-items').value.split('\n').map(s=>s.trim()).filter(Boolean);
+    if(!text){ toast('Upiši pitanje'); return; }
+    if(items.length < 2){ toast('Upiši barem 2 odgovora, jedan po retku'); return; }
+    await db.ref('hostTrivia/' + uid()).set({ text, items });
+    toast('Dodano u bazu za voditelja');
+  });
+  document.querySelectorAll('[data-del-trivia]').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      await db.ref('hostTrivia/' + btn.dataset.delTrivia).remove();
+      toast('Obrisano');
+    });
+  });
   document.getElementById('btn-rename-quiz')?.addEventListener('click', async ()=>{
     const title = document.getElementById('quiz-title').value.trim();
     if(!title) return;
@@ -494,6 +569,15 @@ function bind(){
   document.getElementById('type-num')?.addEventListener('click', ()=>{ newQType='num'; render(); });
   document.getElementById('type-open')?.addEventListener('click', ()=>{ newQType='open'; render(); });
   document.getElementById('type-clues')?.addEventListener('click', ()=>{ newQType='clues'; render(); });
+  document.getElementById('type-break')?.addEventListener('click', ()=>{ newQType='break'; render(); });
+  document.getElementById('btn-add-break')?.addEventListener('click', async ()=>{
+    const text = document.getElementById('break-text').value.trim();
+    const quiz = QUIZZES[selectedQuizId];
+    const questions = (quiz.questions || []).slice();
+    questions.push({ type:'break', text: text || 'Pauza! 🍹' });
+    await db.ref('quizzes/' + selectedQuizId + '/questions').set(questions);
+    toast('Pauza dodana');
+  });
 
   document.querySelectorAll('[data-del-q]').forEach(btn=>{
     btn.addEventListener('click', async ()=>{
