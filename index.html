@@ -850,7 +850,7 @@ function goHome(){
     db.ref('scores').onDisconnect().cancel();
     db.ref('answers').onDisconnect().cancel();
     db.ref('round').onDisconnect().cancel();
-    db.ref('state').update({ hostId: null, phase: 'lobby', qIndex: 0, cluesOpen: 1, hostQ: null, hostQReturn: null });
+    db.ref('state').update({ hostId: null, phase: 'lobby', qIndex: 0, cluesOpen: 1, hostQ: null, hostQReturn: null, hostQRevealed: false });
     db.ref('players').remove();
     db.ref('scores').remove();
     db.ref('answers').remove();
@@ -927,7 +927,7 @@ function render(){
     document.getElementById('btn-become-host')?.addEventListener('click', async ()=>{
       await db.ref('state').transaction(current => {
         if(!current || !current.hostId){
-          return { ...(current||{}), hostId: ME.id, phase: 'lobby', qIndex: 0, cluesOpen: 1, hostQ: null, hostQReturn: null };
+          return { ...(current||{}), hostId: ME.id, phase: 'lobby', qIndex: 0, cluesOpen: 1, hostQ: null, hostQReturn: null, hostQRevealed: false };
         }
         return current; // netko je u međuvremenu već postao voditelj, ne diraj
       });
@@ -939,7 +939,7 @@ function render(){
   }
 
   if(isHost){
-    db.ref('state').onDisconnect().update({ hostId: null, phase: 'lobby', qIndex: 0, cluesOpen: 1, hostQ: null, hostQReturn: null });
+    db.ref('state').onDisconnect().update({ hostId: null, phase: 'lobby', qIndex: 0, cluesOpen: 1, hostQ: null, hostQReturn: null, hostQRevealed: false });
     db.ref('players').onDisconnect().remove();
     db.ref('scores').onDisconnect().remove();
     db.ref('answers').onDisconnect().remove();
@@ -1064,11 +1064,27 @@ function bindJoin(){
   });
 }
 
-let hostQRevealed = false;
-
 function hostQuestionScreenHTML(isHostNow, isDisplay){
   const hq = G.state.hostQ || { text:'', items:[] };
+  const revealed = !!G.state.hostQRevealed;
+  const total = (hq.items||[]).length;
+  const half = Math.ceil(total/2);
+  const itemsList = `<div class="card" style="text-align:left;">
+    ${(hq.items||[]).map((it,i)=>`<div class="player-chip"><div class="name-row"><div class="avatar">${i+1}</div><div>${it}</div></div></div>`).join('')}
+  </div>`;
+
   if(isDisplay){
+    if(revealed){
+      return `
+        <div class="stage">
+          <div class="eyebrow">🎤 Točni odgovori</div>
+          <div class="stage-q" style="font-size:clamp(24px,4vw,36px);">${hq.text}</div>
+          <div class="card stage-board" style="text-align:left; margin-top:10px;">
+            ${(hq.items||[]).map((it,i)=>`<div class="player-chip"><div class="name-row"><div class="avatar">${i+1}</div><div>${it}</div></div></div>`).join('')}
+          </div>
+        </div>
+      `;
+    }
     return `
       <div class="stage">
         <div class="eyebrow">🎤 Pitanje za voditelja</div>
@@ -1078,6 +1094,16 @@ function hostQuestionScreenHTML(isHostNow, isDisplay){
     `;
   }
   if(!isHostNow){
+    if(revealed){
+      return `
+        <div style="padding-top:20px; text-align:center;">
+          <div class="eyebrow">🎤 Točni odgovori</div>
+          <h1 class="title-hero" style="font-size:22px;">${hq.text}</h1>
+          ${itemsList}
+          <p class="sub" style="margin-top:14px;">Prati je li voditelj sve pogodio! 👀</p>
+        </div>
+      `;
+    }
     return `
       <div style="padding-top:40px; text-align:center;">
         <div class="big-emoji pop-in">🎤</div>
@@ -1086,9 +1112,7 @@ function hostQuestionScreenHTML(isHostNow, isDisplay){
       </div>
     `;
   }
-  const total = (hq.items||[]).length;
-  const half = Math.ceil(total/2);
-  if(!hostQRevealed){
+  if(!revealed){
     return `
       <div style="padding-top:20px; text-align:center;">
         <div class="eyebrow">🎤 Pitanje za voditelja <span class="badge-host">HOST</span></div>
@@ -1104,9 +1128,7 @@ function hostQuestionScreenHTML(isHostNow, isDisplay){
   return `
     <div style="padding-top:20px; text-align:center;">
       <div class="eyebrow">🎤 Točni odgovori <span class="badge-host">HOST</span></div>
-      <div class="card" style="text-align:left;">
-        ${(hq.items||[]).map((it,i)=>`<div class="player-chip"><div class="name-row"><div class="avatar">${i+1}</div><div>${it}</div></div></div>`).join('')}
-      </div>
+      ${itemsList}
       <p class="sub" style="margin-top:14px;">Manje od ${half}/${total} → eksiraj ili popij 5 gutljaja.<br>${half}+ ali ne sve → popij 1 gutljaj.</p>
     </div>
     <div class="footer-bar"><div class="inner">
@@ -1118,13 +1140,11 @@ function hostQuestionScreenHTML(isHostNow, isDisplay){
 function bindHostQuestion(isHostNow){
   if(!isHostNow) return;
   document.getElementById('btn-hostq-reveal')?.addEventListener('click', ()=>{
-    hostQRevealed = true;
-    render();
+    db.ref('state/hostQRevealed').set(true);
   });
   document.getElementById('btn-hostq-continue')?.addEventListener('click', ()=>{
-    hostQRevealed = false;
     const ret = G.state.hostQReturn || { phase: 'lobby' };
-    const update = { phase: ret.phase, hostQ: null, hostQReturn: null };
+    const update = { phase: ret.phase, hostQ: null, hostQReturn: null, hostQRevealed: false };
     if(ret.phase === 'question'){
       update.qIndex = ret.qIndex || 0;
       update.cluesOpen = 1;
@@ -1139,11 +1159,11 @@ async function triggerHostQuestion(returnState){
   const ids = Object.keys(G.hostTrivia);
   if(ids.length === 0) return false;
   const pick = G.hostTrivia[ids[Math.floor(Math.random()*ids.length)]];
-  hostQRevealed = false;
   await db.ref('state').update({
     phase: 'hostq',
     hostQ: { text: pick.text, items: pick.items || [] },
-    hostQReturn: returnState
+    hostQReturn: returnState,
+    hostQRevealed: false
   });
   return true;
 }
@@ -1755,7 +1775,8 @@ function init(){
       cluesOpen: typeof raw.cluesOpen === 'number' ? raw.cluesOpen : 1,
       questionStartedAt: raw.questionStartedAt || null,
       hostQ: raw.hostQ || null,
-      hostQReturn: raw.hostQReturn || null
+      hostQReturn: raw.hostQReturn || null,
+      hostQRevealed: !!raw.hostQRevealed
     };
     const qChanged = newState.qIndex !== G.state.qIndex;
     G.state = newState;
