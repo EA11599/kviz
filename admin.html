@@ -564,6 +564,7 @@ function bind(){
     await db.ref('scores').remove();
     await db.ref('answers').remove();
     await db.ref('round').remove();
+    await db.ref('presence').remove();
     const stateSnap = await db.ref('state').once('value');
     const quizId = (stateSnap.val() || {}).quizId || null;
     await db.ref('state').set({ phase:'lobby', qIndex:0, hostId:null, quizId });
@@ -575,6 +576,7 @@ function bind(){
     await db.ref('scores').remove();
     await db.ref('answers').remove();
     await db.ref('round').remove();
+    await db.ref('presence').remove();
     await db.ref('state').set({ phase:'lobby', qIndex:0, hostId:null, quizId:null });
     toast('Igra resetirana');
   });

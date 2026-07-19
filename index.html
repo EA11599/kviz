@@ -380,7 +380,8 @@ const G = {
   answers: {},   // odgovori za TRENUTNO pitanje (state.qIndex)
   round: {},     // bodovi za TRENUTNO pitanje (state.qIndex)
   quizzes: {},   // svi kvizovi iz baze: { quizId: { title, questions:[...] } }
-  hostTrivia: {} // zajednička baza "nabroji..." pitanja za voditelja (party mod)
+  hostTrivia: {}, // zajednička baza "nabroji..." pitanja za voditelja (party mod)
+  presence: {}    // odvojena evidencija tko je trenutno spojen (id -> true), NE dio players zapisa
 };
 let currentQRefs = null; // { answersRef, roundRef } - da ih možemo odspojiti pri promjeni pitanja
 
@@ -558,15 +559,15 @@ let presenceRegisteredFor = null;
 function ensurePlayerInList(){
   if(!ME || ME.role !== 'player' || ME.id === G.state.hostId) return;
   if(!G.players[ME.id]){
-    db.ref('players/' + ME.id).set({ name: ME.name, joined: firebase.database.ServerValue.TIMESTAMP, connected: true });
+    db.ref('players/' + ME.id).set({ name: ME.name, joined: firebase.database.ServerValue.TIMESTAMP });
   } else {
     wasInGame = true;
   }
   if(presenceRegisteredFor !== ME.id){
     presenceRegisteredFor = ME.id;
-    const connRef = db.ref('players/' + ME.id + '/connected');
-    connRef.onDisconnect().set(false);
-    connRef.set(true);
+    const pRef = db.ref('presence/' + ME.id);
+    pRef.onDisconnect().remove(); // briše samo iz 'presence', nikad ne dira/stvara 'players'
+    pRef.set(true);
   }
 }
 
@@ -593,6 +594,7 @@ function cleanupStaleLobbyPlayers(){
     const joined = G.players[pid].joined || 0;
     if(now - joined > LOBBY_TIMEOUT_MS){
       db.ref('players/' + pid).remove();
+      db.ref('presence/' + pid).remove();
     }
   });
 }
@@ -687,14 +689,14 @@ function answeredStatusHTML(players){
   const ids = Object.keys(players);
   if(ids.length === 0) return '<div class="center-note" style="padding:8px;">Nema igrača.</div>';
   return ids.map(pid=>{
-    const name = players[pid].name;
+    const name = players[pid].name || 'Igrač';
     const done = G.answers[pid] !== undefined;
     return `<div class="player-chip"><div class="name-row"><div class="avatar">${initials(name)}</div><div>${name}</div></div><div style="font-size:19px;">${done ? '✅' : '⏳'}</div></div>`;
   }).join('');
 }
 
 function scoreboardHTML(players, scores, meId, canRemove){
-  const rows = Object.keys(players).map(pid=>({ pid, name: players[pid].name, score: scores[pid]||0 }));
+  const rows = Object.keys(players).map(pid=>({ pid, name: players[pid].name || 'Igrač', score: scores[pid]||0 }));
   rows.sort((a,b)=>b.score-a.score);
   return rows.map((r,i)=>`
     <div class="score-row ${r.pid===meId?'me':''}">
@@ -739,7 +741,7 @@ function partyCalloutHTML(players, scores){
   if(ids.length === 0) return '';
   let minScore = Infinity;
   ids.forEach(pid=>{ const s = scores[pid]||0; if(s < minScore) minScore = s; });
-  const lastNames = ids.filter(pid => (scores[pid]||0) === minScore).map(pid=>players[pid].name);
+  const lastNames = ids.filter(pid => (scores[pid]||0) === minScore).map(pid=>players[pid].name || 'Igrač');
   if(lastNames.length === 0) return '';
   return `<div class="type-badge badge-special" style="display:block; text-align:center; font-size:16px; padding:14px; margin:14px 0;">🍻 ${lastNames.join(', ')} ${lastNames.length>1?'su':'je'} trenutno zadnji — eksirajte ili popijte 5 gutljaja!</div>`;
 }
@@ -793,6 +795,7 @@ async function resetGame(){
   await db.ref('scores').set(null);
   await db.ref('answers').set(null);
   await db.ref('round').set(null);
+  await db.ref('presence').set(null);
 }
 
 let scoreboardOpen = false;
@@ -830,6 +833,7 @@ function renderScoreboardModal(){
       if(!confirm(`Maknuti "${name}" iz igre? Ne može se poništiti.`)) return;
       await db.ref('players/' + pid).remove();
       await db.ref('scores/' + pid).remove();
+      await db.ref('presence/' + pid).remove();
     });
   });
 }
@@ -853,8 +857,9 @@ function goHome(){
     db.ref('round').remove();
   }
   if(ME && ME.role === 'player'){
-    db.ref('players/' + ME.id).onDisconnect().cancel();
     db.ref('players/' + ME.id).remove();
+    db.ref('presence/' + ME.id).onDisconnect().cancel();
+    db.ref('presence/' + ME.id).remove();
   }
   ME = null;
   render();
@@ -926,8 +931,9 @@ function render(){
         }
         return current; // netko je u međuvremenu već postao voditelj, ne diraj
       });
-      db.ref('players/' + ME.id).onDisconnect().cancel();
       db.ref('players/' + ME.id).remove();
+      db.ref('presence/' + ME.id).onDisconnect().cancel();
+      db.ref('presence/' + ME.id).remove();
     });
     return;
   }
@@ -1036,7 +1042,7 @@ function bindJoin(){
       const existingId = Object.keys(G.players).find(pid => (G.players[pid].name||'').trim().toLowerCase() === name.toLowerCase());
       let useId = uid();
       if(existingId){
-        if(G.players[existingId].connected){
+        if(G.presence[existingId]){
           alert(`Ime "${name}" je trenutno zauzeto - netko ga upravo koristi na drugom uređaju. Odaberi drugo ime.`);
           input.focus();
           return;
@@ -1160,7 +1166,7 @@ function noHostScreenHTML(players){
   const active = activePlayers(players);
   const list = Object.values(active).map(p=>`
     <div class="player-chip"><div class="name-row">
-      <div class="avatar">${initials(p.name)}</div><div>${p.name}</div>
+      <div class="avatar">${initials(p.name)}</div><div>${p.name || 'Igrač'}</div>
     </div></div>`).join('');
   return `
     <div style="padding-top:12px;">
@@ -1183,7 +1189,7 @@ function hostScreenHTML(state, players, scores){
   if(state.phase === 'lobby'){
     const list = Object.values(activePlayers(players)).map(p=>`
       <div class="player-chip"><div class="name-row">
-        <div class="avatar">${initials(p.name)}</div><div>${p.name}</div>
+        <div class="avatar">${initials(p.name)}</div><div>${p.name || 'Igrač'}</div>
       </div></div>`).join('');
 
     const quizIds = Object.keys(G.quizzes);
@@ -1574,7 +1580,7 @@ function playerScreenHTML(state, players, scores){
   }
 
   if(state.phase === 'end'){
-    const rows = Object.keys(players).map(pid=>({ pid, name: players[pid].name, score: scores[pid]||0 }));
+    const rows = Object.keys(players).map(pid=>({ pid, name: players[pid].name || 'Igrač', score: scores[pid]||0 }));
     rows.sort((a,b)=>b.score-a.score);
     const myRank = rows.findIndex(r=>r.pid===ME.id) + 1;
     return `
@@ -1628,7 +1634,7 @@ function displayScreenHTML(state, players, scores){
   if(!state.hostId || state.phase === 'lobby'){
     const list = Object.values(activePlayers(players)).map(p=>`
       <div class="player-chip"><div class="name-row">
-        <div class="avatar">${initials(p.name)}</div><div>${p.name}</div>
+        <div class="avatar">${initials(p.name)}</div><div>${p.name || 'Igrač'}</div>
       </div></div>`).join('');
     return `
       <div class="stage">
@@ -1684,7 +1690,7 @@ function displayScreenHTML(state, players, scores){
       : (q.type==='num') ? `${q.correct} ${q.unit||''}`
       : q.correct;
     const drinkers = activeQuiz().partyMode
-      ? Object.keys(players).filter(pid => (G.round[pid] || 0) <= 0).map(pid => players[pid].name)
+      ? Object.keys(players).filter(pid => (G.round[pid] || 0) <= 0).map(pid => players[pid].name || 'Igrač')
       : [];
     const partyBlock = drinkers.length
       ? `<div class="pill flash" style="margin-top:16px; color:var(--pink);">🍻 Piju: ${drinkers.join(', ')}</div>`
@@ -1736,6 +1742,7 @@ function init(){
 
   db.ref('quizzes').on('value', snap => { G.quizzes = snap.val() || {}; render(); });
   db.ref('hostTrivia').on('value', snap => { G.hostTrivia = snap.val() || {}; render(); });
+  db.ref('presence').on('value', snap => { G.presence = snap.val() || {}; render(); });
   db.ref('players').on('value', snap => { G.players = snap.val() || {}; render(); });
   db.ref('scores').on('value', snap => { G.scores = snap.val() || {}; render(); });
   db.ref('state').on('value', snap => {
