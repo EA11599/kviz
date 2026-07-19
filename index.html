@@ -685,6 +685,27 @@ function scoreboardHTML(players, scores, meId){
 }
 
 // Kod pauze (party mod) - tko je trenutno zadnji mora piti
+const TOAST_QUOTES = [
+  "Živjeli, i da nam sve bude na dobro! 🥂",
+  "Pijmo dok smo mladi — kad ostarimo, nećemo moći!",
+  "Za prijatelje - stare i nove!",
+  "Neka čaše budu pune, a briga prazna.",
+  "U zdravlju i veselju!",
+  "Kad Bog zatvori vrata, otvori bar.",
+  "Alkohol je odgovor. Ne sjećam se pitanja.",
+  "Živjeli — sutra brinemo o sutra!",
+  "Čokanj u ruci, osmijeh na licu!",
+  "Za sve nas koji smo večeras ovdje — nazdravimo!",
+  "Piće nikad nije pitanje, nego rješenje.",
+  "Za ljubav, smijeh i još jednu turu!",
+  "Nazdravimo — bolje ovako nego pametno i trijezno.",
+  "Život je prekratak za loše piće i dosadne kvizove!",
+  "U čast ove ekipe — živjeli!"
+];
+function pickToastQuote(qIndex){
+  return TOAST_QUOTES[qIndex % TOAST_QUOTES.length];
+}
+
 function partyCalloutHTML(players, scores){
   if(!activeQuiz().partyMode) return '';
   const ids = Object.keys(players);
@@ -703,11 +724,17 @@ function breakScreenHTML(q, players, scores, opts){
       <div style="font-weight:600; font-size:14px; color:var(--muted); margin-bottom:10px;">Ljestvica</div>
       ${scoreboardHTML(players, scores, opts.meId || null)}
     </div>`;
+  const toastBlock = activeQuiz().partyMode ? `
+    <div class="type-badge badge-special" style="display:block; text-align:center; font-size:16px; padding:14px; margin:10px 0;">
+      🥂 Svi nazdravite!<br><span style="font-weight:400; font-style:italic;">"${pickToastQuote(opts.qIndex || 0)}"</span>
+    </div>
+  ` : '';
   if(opts.stage){
     return `
       <div class="stage">
         <div class="eyebrow">Pauza</div>
         <div class="stage-answer">${q.text}</div>
+        ${toastBlock}
         ${partyCalloutHTML(players, scores)}
         <div class="card stage-board" style="margin-top:20px; text-align:left;">
           <div style="font-weight:600; font-size:14px; color:var(--muted); margin-bottom:12px;">Ljestvica</div>
@@ -721,6 +748,7 @@ function breakScreenHTML(q, players, scores, opts){
       ${opts.isHost ? `<div class="eyebrow">Pauza <span class="badge-host">HOST</span></div>` : ''}
       <div class="big-emoji pop-in">🍹</div>
       <h1 class="title-hero">${q.text}</h1>
+      ${toastBlock}
       ${partyCalloutHTML(players, scores)}
       ${board}
     </div>
@@ -1165,7 +1193,7 @@ function hostScreenHTML(state, players, scores){
     const q = activeQuiz().questions[state.qIndex];
     if(q.type === 'break'){
       const isLast = state.qIndex === activeQuiz().questions.length - 1;
-      return breakScreenHTML(q, players, scores, { isHost:true, isLast });
+      return breakScreenHTML(q, players, scores, { isHost:true, isLast, qIndex: state.qIndex });
     }
     const answered = Object.keys(G.answers).length;
     const cluesBlock = q.type === 'clues' ? `
@@ -1348,7 +1376,7 @@ function playerScreenHTML(state, players, scores){
   if(state.phase === 'question'){
     const q = activeQuiz().questions[state.qIndex];
     if(q.type === 'break'){
-      return breakScreenHTML(q, players, scores, { meId: ME.id });
+      return breakScreenHTML(q, players, scores, { meId: ME.id, qIndex: state.qIndex });
     }
     const myScore = scores[ME.id] || 0;
     const scoreLine = `<div class="row" style="margin-bottom:4px;"><div class="eyebrow" style="margin-bottom:0;">Pitanje ${state.qIndex+1} / ${activeQuiz().questions.length}</div><div class="score-pill">🏆 ${myScore}</div></div>${timerPillHTML()}`;
@@ -1543,7 +1571,7 @@ function displayScreenHTML(state, players, scores){
   if(state.phase === 'question'){
     const q = activeQuiz().questions[state.qIndex];
     if(q.type === 'break'){
-      return breakScreenHTML(q, players, scores, { stage:true });
+      return breakScreenHTML(q, players, scores, { stage:true, qIndex: state.qIndex });
     }
     const answered = Object.keys(G.answers).length;
     let opts;
