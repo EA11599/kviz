@@ -874,7 +874,7 @@ function render(){
   const typingInInput = activeEl && (activeEl.id === 'text-input' || activeEl.id === 'num-input' || activeEl.id === 'name-input' || activeEl.classList.contains('timer-sec'));
   const myAnswered = (ME && G.answers[ME.id] !== undefined);
   const timeUpNow = !!(getTimerConfig() && getRemainingSeconds() <= 0);
-  const currentKey = (ME ? ME.id + ':' + ME.role : 'none') + ':' + G.state.phase + ':' + G.state.qIndex + ':' + G.state.cluesOpen + ':' + myAnswered + ':' + timeUpNow;
+  const currentKey = (ME ? ME.id + ':' + ME.role : 'none') + ':' + G.state.phase + ':' + G.state.qIndex + ':' + G.state.cluesOpen + ':' + myAnswered + ':' + timeUpNow + ':' + !!G.state.hostQRevealed;
   if(typingInInput && currentKey === lastRenderKey){
     return; // ništa relevantno za ovaj ekran se nije promijenilo - ne diraj input dok korisnik piše
   }
